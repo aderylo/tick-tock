@@ -112,7 +112,7 @@
 
         currentScreen = "eulogy";
         // Delay showing buttons slightly for effect
-        setTimeout(() => (showEulogyActions = true), 1000);
+        setTimeout(() => (showEulogyActions = true), 100);
     }
 
     function handleEulogyContinue() {
@@ -226,7 +226,7 @@
                 <!-- Dynamic Eulogy Text Container -->
                 <div
                     class="text-center leading-relaxed mb-16 text-gray-300 px-4 eulogy-content"
-                    style="font-size: 0.9rem; line-height: 2.5;"
+                    style="font-size: 0.8rem; line-height: 2.5;"
                 >
                     {@html eulogyText.toUpperCase()}
                 </div>
@@ -340,6 +340,7 @@
         /* Base size reduced for this wide font */
         line-height: 1.5;
         position: relative;
+        overflow-y: auto;
     }
 
     .screen {
@@ -347,7 +348,7 @@
         top: 0;
         left: 0;
         width: 100%;
-        height: 100%;
+        min-height: 100%;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -356,6 +357,7 @@
         /* pointer-events: none; handled by svelte if/else */
         z-index: 1;
         padding: 2rem;
+        overflow-y: auto;
     }
 
     .screen.visible {

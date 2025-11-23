@@ -211,15 +211,19 @@
     // If startDate is in past, consumed is (now - startDate)
     $: timePassedMs = Math.max(0, now.getTime() - startDate.getTime());
     
-    $: effectiveDeadlineDiffMs = deadlineDiffMs * (1 - totalExcludedRatio);
-    $: effectiveTimePassedMs = timePassedMs * (1 - totalExcludedRatio); // Also reduce passed time by ratio? 
-    // Actually, capacity is total * (1-ratio).
-    // Used is passed * (1-ratio).
-    // Remaining is diff * (1-ratio).
+    // Effective Calculation: Proportional reduction
+    // We apply the ratio (e.g. 1/3 for 8h sleep) regardless of total duration.
+    // This ensures that for short deadlines (<24h), we don't subtract a fixed 8h, 
+    // but rather 1/3 of the remaining time.
+    $: effectiveDeadlineDiffMs = deadlineDiffMs > 0 
+        ? deadlineDiffMs * (1 - totalExcludedRatio)
+        : 0;
+
+    $: effectiveTimePassedMs = timePassedMs * (1 - totalExcludedRatio); 
     
-    $: deadlineWeeksLeft = Math.max(0, Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60 * 24 * 7)));
-    $: deadlineDaysLeft = Math.max(0, Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60 * 24)));
-    $: deadlineHoursLeft = Math.max(0, Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60)));
+    $: deadlineWeeksLeft = Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60 * 24 * 7));
+    $: deadlineDaysLeft = Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60 * 24));
+    $: deadlineHoursLeft = Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60));
     
     // Progress for Pacman (0 to 1) - based on capacity reduction
     $: deadlineProgressRaw = 0; // Time passed is 0
@@ -236,8 +240,8 @@
     
     $: totalEffectiveCapacity = (totalDeadlineSpanMs > 0) ? totalDeadlineSpanMs * (1 - totalExcludedRatio) : 0;
     
-    $: deadlinePercentCapacity = (deadlineDate && totalEffectiveCapacity > 0)
-        ? Math.max(0, Math.min(100, (effectiveDeadlineDiffMs / totalEffectiveCapacity) * 100))
+    $: deadlinePercentCapacity = (deadlineDate && totalDeadlineSpanMs > 0)
+        ? Math.max(0, Math.min(100, (effectiveDeadlineDiffMs / totalDeadlineSpanMs) * 100))
         : 100; // Default to 100% capacity if invalid
 
 
@@ -270,10 +274,17 @@
             target = yearProgress * 365;
         } else if (viewMode === "deadline") {
             // Deadline logic
-            // If no deadline is set, deadlinePercentCapacity defaults to 100 (all capacity available).
-            // Progress = 1 - (100/100) = 0.
-            const deadlineProgress = 1 - (deadlinePercentCapacity / 100);
-            target = Math.min(100, Math.max(0, deadlineProgress * 100));
+            // Target = (Time Passed + Excluded Future Time) / Total Span
+            // Time Passed: timePassedMs (includes past excluded time implicitly)
+            // Excluded Future Time: deadlineDiffMs * totalExcludedRatio
+            // Total Span: totalDeadlineSpanMs
+            
+            const rawRatio = totalDeadlineSpanMs > 0 
+                ? (timePassedMs + (deadlineDiffMs * totalExcludedRatio)) / totalDeadlineSpanMs 
+                : 0;
+            
+            const safeRatio = Math.min(1, Math.max(0, rawRatio));
+            target = safeRatio * 100;
         }
         animateTo(target || 0);
     }
