@@ -118,13 +118,13 @@
             target = effectiveMonthsConsumed;
         } else if (viewMode === "yearly") {
             const yearProgress = 1 - yearPercentLeft / 100;
-            target = yearProgress * 48;
+            target = yearProgress * 365;
         } else if (viewMode === "deadline") {
             // Deadline logic
             // If no deadline is set, deadlinePercentCapacity defaults to 100 (all capacity available).
             // Progress = 1 - (100/100) = 0.
             const deadlineProgress = 1 - (deadlinePercentCapacity / 100);
-            target = Math.min(48, Math.max(0, deadlineProgress * 48));
+            target = Math.min(100, Math.max(0, deadlineProgress * 100));
         }
         animateTo(target);
     }
@@ -158,26 +158,31 @@
         const fragment = document.createDocumentFragment();
 
         // Determine grid size based on mode
-        // Yearly: 12 months * 4 weeks = 48 dots
-        const totalItems = viewMode === "total" ? totalMonths : 48;
+        // Yearly: 365 dots (one per day)
+        // Deadline: 100 dots (10x10)
+        let totalItems = totalMonths;
+        if (viewMode === "yearly") totalItems = 365;
+        else if (viewMode === "deadline") totalItems = 100;
 
         for (let i = 0; i < totalItems; i++) {
             const cell = document.createElement("div");
             cell.className = "grid-cell";
 
             // Adjust cell size for yearly mode to be chunkier
-            if (viewMode === "yearly" || viewMode === "deadline") {
-                cell.style.height = "25px"; // Bigger cells
-                // Width defaults to auto (fill column), which centers the dot via flexbox
+            if (viewMode === "deadline") {
+                cell.style.height = "30px"; // Square-ish 
+            } else if (viewMode === "yearly") {
+                // Keep compact for 365 dots
+                cell.style.height = "10px"; 
             }
 
             const dot = document.createElement("div");
             dot.className = "grid-dot future";
 
             // Adjust dot size for yearly mode
-            if (viewMode === "yearly" || viewMode === "deadline") {
-                dot.style.width = "10px"; // Bigger dots
-                dot.style.height = "10px";
+            if (viewMode === "deadline") {
+                dot.style.width = "12px"; 
+                dot.style.height = "12px";
             }
 
             cell.appendChild(dot);
@@ -192,11 +197,15 @@
             dots[0].dot.style.display = "none";
         }
 
-        // Adjust grid columns for yearly mode
-        if (viewMode === "yearly" || viewMode === "deadline") {
-            gridContainer.style.gridTemplateColumns = "repeat(4, 1fr)"; // 4 columns (weeks)
-            gridContainer.style.maxWidth = "160px"; // Narrow layout for 4 cols
-            gridContainer.style.gap = "4px"; // Slightly more gap
+        // Adjust grid columns
+        if (viewMode === "deadline") {
+            gridContainer.style.gridTemplateColumns = "repeat(10, 1fr)";
+            gridContainer.style.maxWidth = "320px"; // 10 * ~30px
+            gridContainer.style.gap = "2px";
+        } else if (viewMode === "yearly") {
+            gridContainer.style.gridTemplateColumns = "repeat(25, 1fr)"; // Fits 365 nicely (14.6 rows)
+            gridContainer.style.maxWidth = "650px";
+            gridContainer.style.gap = "1px";
         } else {
             gridContainer.style.gridTemplateColumns = "repeat(24, 1fr)";
             gridContainer.style.maxWidth = "650px";
@@ -346,6 +355,9 @@
     {/if}
 
     <div class="main-content">
+        <!-- Placeholder for symmetry (desktop only) -->
+        <div class="placeholder-box desktop-only"></div>
+
         <div class="grid-wrapper" bind:this={gridContainer}></div>
 
         <div class="stats">
@@ -665,27 +677,35 @@
     @media (min-width: 900px) {
         .main-content {
             flex-direction: row;
-            display: block; /* Block layout for the wrapper */
-            width: 650px; /* Fixed width matching the grid */
-            margin: 0 auto; /* Center the 650px block */
-            position: relative; /* Anchor for absolute stats */
-            overflow: visible; /* Allow stats to hang out */
+            display: flex; /* Changed from block to flex to use gap/justify */
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%; /* Use full width */
+            max-width: none; /* Remove max-width constraint on wrapper */
+            margin: 0;
+            gap: 2rem; /* Space between items */
+            position: relative;
+            overflow: visible;
         }
 
         .grid-wrapper {
-            width: 100%; /* Fill the centered container */
+            width: auto; /* Let grid define its own width */
+            max-width: 650px; /* Keep existing max-width for the grid itself */
+            flex-shrink: 0; /* Prevent shrinking */
         }
 
         .stats {
             display: flex; /* Ensure visible on desktop */
-            position: absolute; /* Take out of flow */
-            left: 100%; /* Move to right edge of container */
-            top: 0;
-            margin-left: 2rem; /* Gap */
-            align-items: flex-start;
-            text-align: left;
+            position: static; /* Remove absolute positioning */
             width: 250px;
-            margin-top: 0;
+            margin: 0;
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+        
+        .placeholder-box {
+            width: 250px; /* Same width as stats */
+            flex-shrink: 0;
+            /* Invisible but takes up space */
         }
     }
 
@@ -747,7 +767,7 @@
         background: rgba(0, 0, 0, 0.5);
         border: 2px solid #333;
         align-content: start;
-        margin: 0 auto;
+        /* Remove margin: 0 auto since flex handles centering now */
         box-sizing: border-box;
     }
 
