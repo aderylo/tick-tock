@@ -3,7 +3,8 @@
 
     const dispatch = createEventDispatcher();
 
-    let introText = "Hello human!\n Let's see your life in numbers?";
+    let introText =
+        "Hello human!\n Would you like to see your life in numbers?";
     let displayedIntro = "";
     let isIntroSelected = false;
     let abortController: AbortController | null = null;

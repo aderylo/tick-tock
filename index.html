@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earth Online - Simulation End</title>
+    <!-- "Press Start 2P" - The Classic Pixel Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* --- Global Variables & Reset --- */
+        :root {
+            --terminal-green: #00ff00;
+            --terminal-bg: #000000;
+            --terminal-dim: #003300;
+        }
+
+        body {
+            background-color: var(--terminal-bg);
+            color: #ffffff;
+            font-family: 'Press Start 2P', cursive;
+            /* Solid, blocky pixel font */
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            user-select: none;
+            font-size: 12px;
+            /* Base size reduced for this wide font */
+            line-height: 1.5;
+        }
+
+        /* --- Main Container --- */
+        .game-container {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            height: 100%;
+            max-height: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 1;
+            padding: 2rem;
+        }
+
+        .screen.visible {
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        /* --- Typography & Elements --- */
+        .terminal-text {
+            font-size: 1rem;
+            /* Adjusted for Press Start 2P */
+            margin-bottom: 1.5rem;
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        /* Specific override for Loading Screen to fit lines */
+        #loading-screen .terminal-text {
+            font-size: 0.7rem;
+            margin-bottom: 0.8rem;
+            white-space: nowrap;
+            /* Keep on one line if possible */
+        }
+
+        /* --- Inputs --- */
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 2rem;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--terminal-green);
+            margin-bottom: 0.8rem;
+            letter-spacing: 1px;
+        }
+
+        input,
+        textarea {
+            background: transparent;
+            border: none;
+            color: var(--terminal-green);
+            font-family: 'Press Start 2P', cursive;
+            font-size: 1rem;
+            outline: none;
+            padding: 0.5rem;
+            text-align: center;
+            text-transform: uppercase;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: none;
+            transition: all 0.3s;
+        }
+
+        input:focus,
+        textarea:focus {
+            /* No border change on focus */
+        }
+
+        /* Hide spin buttons for number input */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        textarea {
+            border: 2px solid #333;
+            /* Keep box for textarea */
+            background: rgba(0, 20, 0, 0.8);
+        }
+
+        /* --- Buttons --- */
+        .pixel-btn {
+            background: var(--terminal-green);
+            color: #000;
+            border: 4px solid var(--terminal-green);
+            /* Thicker border for blocky feel */
+            padding: 15px 20px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            margin-top: 1.5rem;
+            box-shadow: none;
+            transition: all 0.2s;
+        }
+
+        .pixel-btn:hover {
+            background: #000;
+            color: var(--terminal-green);
+        }
+
+        .pixel-btn.secondary {
+            background: transparent;
+            border-color: #666;
+            color: #888;
+        }
+
+        .pixel-btn.secondary:hover {
+            border-color: #fff;
+            color: #fff;
+        }
+
+        /* --- Navigation Bar --- */
+        .nav-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            z-index: 100;
+            pointer-events: none;
+            /* Let clicks pass through to screen if not on button */
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: 2px solid #444;
+            color: #666;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.8rem;
+            padding: 10px 20px;
+            cursor: pointer;
+            text-transform: uppercase;
+            pointer-events: auto;
+            transition: all 0.2s;
+        }
+
+        .nav-btn:hover {
+            border-color: var(--terminal-green);
+            color: var(--terminal-green);
+        }
+
+        .nav-btn.disabled {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* --- Pixel Earth & Static Text --- */
+        .earth-container {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 4rem;
+            /* More space for text above */
+            margin-top: 2rem;
+        }
+
+        .pixel-earth {
+            width: 100px;
+            /* Slightly larger again */
+            height: 100px;
+            image-rendering: pixelated;
+            background: radial-gradient(circle at 30% 30%, #4facfe, #00f2fe);
+            border-radius: 50%;
+            box-shadow: inset -10px -10px 0px rgba(0, 0, 0, 0.2);
+            position: relative;
+            animation: spin 12s linear infinite;
+            border: 4px solid #000;
+            z-index: 2;
+            overflow: hidden;
+            /* KEEPS THE MAP INSIDE THE CIRCLE */
+        }
+
+        .pixel-earth::after {
+            content: '';
+            position: absolute;
+            top: 10%;
+            /* Adjusted to fit better */
+            left: 0;
+            width: 200%;
+            height: 80%;
+            background-image:
+                linear-gradient(90deg, transparent 50%, #2ecc71 50%),
+                linear-gradient(90deg, #2ecc71 30%, transparent 30%);
+            background-size: 40px 20px;
+            opacity: 0.9;
+            animation: moveMap 6s linear infinite;
+        }
+
+        .static-title {
+            position: absolute;
+            top: -40px;
+            /* Above the earth */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            text-align: center;
+            z-index: 3;
+        }
+
+        .static-title span {
+            color: #fff;
+            font-size: 1rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 0px #000;
+            background: #000;
+            padding: 5px 10px;
+            border: 2px solid #fff;
+        }
+
+        @keyframes orbit {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes moveMap {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(-50%);
+            }
+        }
+
+        /* --- ASCII Frame & Eulogy --- */
+        .ascii-frame {
+            border: 2px dashed #444;
+            /* Simulates - - - - frame */
+            padding: 2rem;
+            max-width: 850px;
+            width: 95%;
+            text-align: center;
+            position: relative;
+            background: rgba(0, 10, 0, 0.5);
+        }
+
+        .cross-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .pixel-cross {
+            font-size: 2rem;
+            color: #555;
+            font-weight: bold;
+        }
+
+        /* --- Pac-Man Grid (CSS Grid) --- */
+        #life-map-grid {
+            display: grid;
+            grid-template-columns: repeat(52, 1fr);
+            /* 52 Columns */
+            gap: 1px;
+            /* Tighter gap */
+            width: 100%;
+            max-width: 750px;
+            max-height: 65vh;
+            overflow-y: auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #333;
+            margin: 0 auto;
+            /* Center */
+        }
+
+        .grid-cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 10px;
+            /* Fixed height for consistency */
+        }
+
+        .grid-dot {
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            margin: auto;
+        }
+
+        .grid-dot.past {
+            background-color: #333;
+        }
+
+        /* Eaten/Past */
+        .grid-dot.future {
+            background-color: #666;
+        }
+
+        /* Uneaten/Future */
+
+        .pacman-shape {
+            width: 10px;
+            height: 10px;
+            background: #ffff00;
+            border-radius: 50%;
+            clip-path: polygon(100% 74%, 44% 48%, 100% 21%, 100% 0, 0 0, 0 100%, 100% 100%);
+            margin: auto;
+            position: relative;
+            z-index: 10;
+            box-shadow: 0 0 5px #ffff00;
+            animation: chomp 0.2s infinite;
+        }
+
+        @keyframes chomp {
+            0% {
+                clip-path: polygon(100% 74%, 44% 48%, 100% 21%, 100% 0, 0 0, 0 100%, 100% 100%);
+            }
+
+            50% {
+                clip-path: polygon(100% 100%, 50% 50%, 100% 0, 100% 0, 0 0, 0 100%, 100% 100%);
+            }
+
+            /* Closed mouth */
+            100% {
+                clip-path: polygon(100% 74%, 44% 48%, 100% 21%, 100% 0, 0 0, 0 100%, 100% 100%);
+            }
+        }
+
+        /* --- Utilities --- */
+        .blink {
+            animation: blinker 1s linear infinite;
+        }
+
+        @keyframes blinker {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .text-green {
+            color: var(--terminal-green);
+        }
+
+        .text-yellow {
+            color: #ffff00;
+        }
+
+        .text-red {
+            color: #ff3333;
+        }
+
+        .text-blue {
+            color: #33ccff;
+        }
+
+        .text-gray {
+            color: #888;
+        }
+
+        .text-white {
+            color: #ffffff;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navigation Bar -->
+    <div class="nav-bar">
+        <button id="btn-return" class="nav-btn" onclick="navigate(-1)">RETURN</button>
+        <button id="btn-skip" class="nav-btn" onclick="navigate(1)">SKIP</button>
+    </div>
+
+    <div class="game-container">
+
+        <!-- Screen 1: Home -->
+        <div id="home-screen" class="screen visible">
+            <div class="earth-container">
+                <div class="static-title">
+                    <span>EARTH ONLINE</span>
+                </div>
+                <div class="pixel-earth"></div>
+            </div>
+
+            <div class="input-group">
+                <label>TRAVELLER ID</label>
+                <input type="text" id="input-id" placeholder="_ _ _ _ _ _" autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label>CURRENT AGE</label>
+                <input type="number" id="input-age" placeholder="_ _" autocomplete="off" style="width: 120px;">
+            </div>
+
+            <button class="pixel-btn" onclick="beginSimulation()">BEGIN SIMULATION</button>
+        </div>
+
+        <!-- Screen 2: Loading / Death -->
+        <div id="loading-screen" class="screen">
+            <div class="flex flex-col items-start max-w-md w-full">
+                <div id="console-output" class="text-left w-full" style="line-height: 2;"></div>
+            </div>
+        </div>
+
+        <!-- Screen 3: Eulogy -->
+        <div id="eulogy-screen" class="screen">
+            <div class="ascii-frame">
+                <!-- Cross at Top Middle -->
+                <div class="cross-container">
+                    <div class="pixel-cross">
+                        †
+                    </div>
+                </div>
+
+                <div class="terminal-text text-gray mb-6" style="font-size: 0.7rem; letter-spacing: 1px;">
+                    [ MEMORY_LOG: <span id="eulogy-id-display">UNKNOWN</span> ]
+                </div>
+
+                <!-- Dynamic Eulogy Text Container -->
+                <div id="eulogy-text-container" class="text-left leading-relaxed mb-10 text-gray-300 px-4"
+                    style="font-size: 0.8rem; line-height: 2;">
+                    <!-- Text will be injected here -->
+                </div>
+
+                <div class="terminal-text text-green mb-6" style="font-size: 0.8rem;">
+                    > SYSTEM QUERY: Do you agree that this reflects the life you would want to be remembered
+                    for?
+                </div>
+
+                <div class="flex gap-8 justify-center">
+                    <button class="pixel-btn" onclick="handleEulogyYes()">YES</button>
+                    <button class="pixel-btn secondary" onclick="handleEulogyNo()">NOT REALLY</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 4: Reflection / Edit -->
+        <div id="reflection-screen" class="screen">
+            <div class="w-full max-w-2xl text-center">
+                <div class="terminal-text text-green mb-6 blink">LEGACY REWRITE PROTOCOL</div>
+
+                <div class="text-left mb-4 text-gray-400" style="font-size: 0.8rem;">
+                    "What part feels wrong? What would you want your life to say instead?"
+                </div>
+
+                <div class="text-center mb-8">
+                    <textarea rows="8" class="w-full border-gray-600 text-white"
+                        placeholder="Rewrite your legacy here..."></textarea>
+                </div>
+
+                <button class="pixel-btn" onclick="handleReflectionSubmit()">UPDATE TRAJECTORY</button>
+            </div>
+        </div>
+
+        <!-- Screen 5: Life Map (Pac-Man) -->
+        <div id="status-screen" class="screen cursor-pointer" title="Click for Year Map">
+            <div class="terminal-text mb-8">
+                WELCOME TO REAL LIFE, <span id="display-name" class="text-yellow"></span>.
+                <br>
+                <span style="font-size: 0.7rem; color: #666; margin-top: 10px; display: block;">(CLICK SCREEN TO
+                    TOGGLE
+                    VIEW)</span>
+            </div>
+
+            <div class="flex flex-row items-center justify-center gap-8 w-full">
+                <!-- Left: Grid -->
+                <div id="life-map-grid"></div>
+
+                <!-- Right: Stats -->
+                <div class="flex flex-col items-start gap-4" style="font-size: 0.8rem;">
+                    <div class="text-gray">AGE: <span id="display-age" class="text-white"></span></div>
+                    <div class="text-gray">EXP: <span class="text-green">80</span></div>
+                    <div class="text-gray">WEEKS: <span id="life-weeks-left" class="text-blue"></span></div>
+                    <div class="text-gray">HOURS: <span id="life-hours-left" class="text-red"></span></div>
+                    <div class="text-gray">END: <span id="display-year" class="text-red"></span></div>
+
+                    <div class="mt-4 border-t border-gray-700 pt-4 w-full">
+                        <div>REMAINING: <span id="display-percent" class="text-green"></span>%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 6: Year Map -->
+        <div id="year-screen" class="screen cursor-pointer" title="Click for Life Map">
+            <div class="terminal-text mb-8 text-yellow">
+                CURRENT YEAR CYCLE: <span id="current-year-display"></span>
+                <br>
+                <span style="font-size: 0.7rem; color: #666; margin-top: 10px; display: block;">(CLICK SCREEN TO
+                    RETURN)</span>
+            </div>
+
+            <div class="flex flex-row items-center justify-center gap-8 w-full">
+                <div id="year-map-grid"></div>
+                <div class="flex flex-col items-start gap-4" style="font-size: 0.8rem;">
+                    <div class="text-gray">GONE: <span id="year-percent" class="text-green"></span>%</div>
+                    <div class="text-gray">WEEKS: <span id="weeks-left" class="text-blue"></span></div>
+                    <div class="text-gray">HOURS: <span id="hours-left" class="text-red"></span></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Config ---
+        const EXPECTANCY_YEARS = 80;
+        const WEEKS_IN_YEAR = 52;
+        const TOTAL_WEEKS = EXPECTANCY_YEARS * WEEKS_IN_YEAR; // 4160
+
+        // --- State ---
+        let travellerName = "TRAVELLER";
+        let travellerAge = 25;
+        let animationInterval;
+        let yearAnimationInterval;
+
+        const screenOrder = ['home', 'loading', 'eulogy', 'reflection', 'status', 'year'];
+        let currentScreenIndex = 0;
+
+        // --- Eulogy Templates ---
+        const eulogyTemplates = [
+            "Traveller <span class='text-white'>[NAME]</span> lived quietly but sincerely.<br>Their presence made small moments feel lighter.<br>Their journey may be complete, but the traces of their kindness remain.",
+            "<span class='text-white'>[NAME]</span> cared deeply, tried often, and stayed human through both joy and difficulty.<br>Their path wasn’t always easy, but it was theirs — and they walked it bravely.",
+            "<span class='text-white'>[NAME]</span> appreciated the small joys: a good conversation, a warm day, a moment of connection.<br>They lived simply, but with heart.",
+            "<span class='text-white'>[NAME]</span> spent their years searching for meaning, learning, growing, and asking why.<br>In that pursuit, they found more truth than they knew."
+        ];
+
+        // --- DOM ---
+        const screens = {
+            home: document.getElementById('home-screen'),
+            loading: document.getElementById('loading-screen'),
+            eulogy: document.getElementById('eulogy-screen'),
+            reflection: document.getElementById('reflection-screen'),
+            status: document.getElementById('status-screen'),
+            year: document.getElementById('year-screen')
+        };
+
+        const btnReturn = document.getElementById('btn-return');
+        const btnSkip = document.getElementById('btn-skip');
+
+        // --- Navigation ---
+        function showScreen(screenName) {
+            // Update index
+            currentScreenIndex = screenOrder.indexOf(screenName);
+
+            // Hide all
+            Object.values(screens).forEach(s => {
+                s.classList.remove('visible');
+            });
+
+            // Show target
+            screens[screenName].classList.add('visible');
+
+            updateNavButtons();
+        }
+
+        function updateNavButtons() {
+            // Disable Return if at start
+            if (currentScreenIndex === 0) {
+                btnReturn.classList.add('disabled');
+            } else {
+                btnReturn.classList.remove('disabled');
+            }
+
+            // Disable Skip if at end
+            if (currentScreenIndex === screenOrder.length - 1) {
+                btnSkip.classList.add('disabled');
+            } else {
+                btnSkip.classList.remove('disabled');
+            }
+        }
+
+        function navigate(direction) {
+            const newIndex = currentScreenIndex + direction;
+
+            // Boundary checks (No wrapping)
+            if (newIndex < 0 || newIndex >= screenOrder.length) return;
+
+            const targetScreen = screenOrder[newIndex];
+            showScreen(targetScreen);
+
+            // If navigating to status/year manually, ensure they are initialized
+            if (targetScreen === 'status') initLifeMap();
+            if (targetScreen === 'year') initYearMap();
+        }
+
+        // --- Flow Functions ---
+
+        function beginSimulation() {
+            const idInput = document.getElementById('input-id').value.trim();
+            const ageInput = document.getElementById('input-age').value.trim();
+
+            if (!idInput || !ageInput) {
+                alert("IDENTITY REQUIRED.");
+                return;
+            }
+
+            travellerName = idInput.toUpperCase();
+            travellerAge = parseInt(ageInput);
+            if (travellerAge > 80) travellerAge = 80;
+
+            showScreen('loading');
+            runTerminalSequence();
+        }
+
+        async function typeLine(text, delay = 30) {
+            const consoleOutput = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = 'terminal-text text-left';
+            line.style.textAlign = 'left';
+            consoleOutput.appendChild(line);
+
+            for (let i = 0; i < text.length; i++) {
+                line.textContent += text.charAt(i);
+                await new Promise(r => setTimeout(r, delay));
+            }
+            await new Promise(r => setTimeout(r, 100));
+        }
+
+        async function runTerminalSequence() {
+            const consoleOutput = document.getElementById('console-output');
+            consoleOutput.innerHTML = '';
+
+            await new Promise(r => setTimeout(r, 200));
+            await typeLine("> CONNECTING TO BIOLOGICAL SERVER...", 10);
+            await typeLine("> DOWNLOADING TIMELINE...", 10);
+            await typeLine("> PARSING MEMORY FRAGMENTS...", 10);
+            await new Promise(r => setTimeout(r, 400));
+
+            await typeLine("...", 50);
+            await typeLine(`> ERROR: TRAVELLER ${travellerName} SIGNAL LOST.`, 20);
+            await typeLine("> STATUS: TERMINATED.", 20);
+
+            const deathLine = document.createElement('div');
+            deathLine.className = 'terminal-text text-white mt-4 text-left';
+            deathLine.style.textAlign = 'left';
+            deathLine.innerHTML = `> CAUSE OF DEATH: COMPLETION OF LIFECYCLE.`;
+            consoleOutput.appendChild(deathLine);
+
+            await new Promise(r => setTimeout(r, 2000));
+
+            // Setup Eulogy
+            document.getElementById('eulogy-id-display').textContent = travellerName;
+
+            // Randomly select eulogy
+            const randomIndex = Math.floor(Math.random() * eulogyTemplates.length);
+            const eulogyText = eulogyTemplates[randomIndex].replace(/\[NAME\]/g, travellerName);
+            document.getElementById('eulogy-text-container').innerHTML = eulogyText;
+
+            showScreen('eulogy');
+        }
+
+        function handleEulogyYes() {
+            alert(`TOO BAD.\nYOU ARE STILL ALIVE.\nWELCOME TO REALITY.`);
+            initLifeMap();
+        }
+
+        function handleEulogyNo() {
+            showScreen('reflection');
+        }
+
+        function handleReflectionSubmit() {
+            alert("TRAJECTORY UPDATED. RESUMING SIMULATION...");
+            initLifeMap();
+        }
+
+        // --- Life Map Logic (Weeks Grid) ---
+
+        let gridDots = []; // Store references for performance
+        let lastPacmanIndex = -1; // Track Pacman's last position
+
+        function initLifeMap() {
+            showScreen('status');
+
+            // Update Stats
+            document.getElementById('display-name').textContent = travellerName;
+            document.getElementById('display-age').textContent = travellerAge;
+
+            const weeksLived = travellerAge * WEEKS_IN_YEAR;
+            const weeksLeft = TOTAL_WEEKS - weeksLived;
+            const progressPercent = ((weeksLived / TOTAL_WEEKS) * 100).toFixed(1);
+            const remainingPercent = (100 - progressPercent).toFixed(1);
+
+            document.getElementById('display-percent').textContent = remainingPercent;
+            // Assuming 'weeks-lived' element exists or will be added
+            // document.getElementById('weeks-lived').textContent = weeksLived.toLocaleString(); 
+            document.getElementById('life-weeks-left').textContent = weeksLeft.toLocaleString();
+
+            // The 'END' year calculation is still based on years, not weeks, so keep it as is for now
+            const remainingYears = EXPECTANCY_YEARS - travellerAge;
+            const currentYear = new Date().getFullYear();
+            document.getElementById('display-year').textContent = currentYear + remainingYears;
+
+            // Start Animation
+            animateLifeJourney(weeksLived);
+        }
+
+        function animateLifeJourney(targetWeeks) {
+            const gridDisplay = document.getElementById('life-map-grid');
+            gridDisplay.innerHTML = '';
+            gridDots = [];
+            lastPacmanIndex = -1; // Reset Pacman's last position
+
+            // 1. Render initial grid (All Future)
+            const fragment = document.createDocumentFragment();
+            for (let i = 0; i < TOTAL_WEEKS; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+
+                const dot = document.createElement('div');
+                dot.className = 'grid-dot future'; // Start all as future
+
+                cell.appendChild(dot);
+                fragment.appendChild(cell);
+                gridDots.push({ cell, dot }); // Store ref
+            }
+            gridDisplay.appendChild(fragment);
+
+            // 2. Animate
+            let currentWeek = 0;
+            const step = 10; // Weeks per frame (Fast forward)
+
+            if (animationInterval) clearInterval(animationInterval);
+
+            animationInterval = setInterval(() => {
+                // Process a batch of weeks
+                const endWeek = Math.min(currentWeek + step, targetWeeks);
+
+                for (let i = currentWeek; i < endWeek; i++) {
+                    const item = gridDots[i];
+                    if (item) {
+                        item.dot.className = 'grid-dot past';
+                        item.dot.style.display = 'block'; // Ensure dot is visible if it was hidden by Pacman
+                    }
+                }
+
+                // Clean up previous pacman
+                if (lastPacmanIndex !== -1 && gridDots[lastPacmanIndex]) {
+                    const prevPacman = gridDots[lastPacmanIndex].cell.querySelector('.pacman-shape');
+                    if (prevPacman) prevPacman.remove();
+                    gridDots[lastPacmanIndex].dot.style.display = 'block'; // Show the dot that was behind Pacman
+                }
+
+                // Add Pacman to current cell
+                const pacmanIndex = endWeek - 1; // Pacman is at the "head" of the progress
+                if (pacmanIndex >= 0 && pacmanIndex < gridDots.length) {
+                    const pacman = document.createElement('div');
+                    pacman.className = 'pacman-shape';
+                    gridDots[pacmanIndex].cell.appendChild(pacman);
+                    gridDots[pacmanIndex].dot.style.display = 'none'; // Hide the dot behind Pacman
+                    lastPacmanIndex = pacmanIndex;
+                } else {
+                    lastPacmanIndex = -1; // No Pacman if out of bounds
+                }
+
+                currentWeek = endWeek;
+
+                if (currentWeek >= targetWeeks) {
+                    clearInterval(animationInterval);
+                    // Ensure Pacman is at the final targetWeeks position
+                    if (lastPacmanIndex !== -1 && gridDots[lastPacmanIndex]) {
+                        const prevPacman = gridDots[lastPacmanIndex].cell.querySelector('.pacman-shape');
+                        if (prevPacman) prevPacman.remove();
+                        gridDots[lastPacmanIndex].dot.style.display = 'block';
+                    }
+                    if (targetWeeks > 0 && targetWeeks <= gridDots.length) {
+                        const finalPacmanIndex = targetWeeks - 1;
+                        const pacman = document.createElement('div');
+                        pacman.className = 'pacman-shape';
+                        gridDots[finalPacmanIndex].cell.appendChild(pacman);
+                        gridDots[finalPacmanIndex].dot.style.display = 'none';
+                        lastPacmanIndex = finalPacmanIndex;
+                    }
+                }
+            }, 20); // 20ms per frame
+        }
+
+        // Remove old renderLifeGrid as it's replaced by animateLifeJourney logic
+        function renderLifeGrid(weeksLived) {
+            // No-op or redirect
+            animateLifeJourney(weeksLived);
+        }
+
+        // --- Year Map Logic ---
+
+        function initYearMap() {
+            showScreen('year');
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            document.getElementById('current-year-display').textContent = currentYear;
+
+            const currentWeek = getWeekNumber(now);
+            const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
+            const diffMs = endOfYear - now;
+
+            const weeksLeft = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+            const hoursLeft = Math.floor(diffMs / (1000 * 60 * 60));
+
+            const startOfYear = new Date(currentYear, 0, 1);
+            const totalYearMs = endOfYear - startOfYear;
+            const passedMs = now - startOfYear;
+            const percentGone = ((passedMs / totalYearMs) * 100).toFixed(1);
+
+            document.getElementById('year-percent').textContent = percentGone;
+            document.getElementById('weeks-left').textContent = weeksLeft;
+            document.getElementById('hours-left').textContent = hoursLeft.toLocaleString();
+
+            animateYearProgress(currentWeek);
+        }
+
+        function animateYearProgress(targetWeek) {
+            const gridDisplay = document.getElementById('year-map-grid');
+            let currentRenderWeek = 0;
+            if (yearAnimationInterval) clearInterval(yearAnimationInterval);
+
+            renderYearGrid(0, gridDisplay);
+
+            yearAnimationInterval = setInterval(() => {
+                currentRenderWeek++;
+                renderYearGrid(currentRenderWeek, gridDisplay);
+                if (currentRenderWeek >= targetWeek) clearInterval(yearAnimationInterval);
+            }, 30);
+        }
+
+        function renderYearGrid(currentWeek, element) {
+            let gridString = '';
+            for (let i = 1; i <= WEEKS_IN_YEAR; i++) {
+                if (i === currentWeek) gridString += '<span class="pacman-man">C</span>';
+                else if (i < currentWeek) gridString += '<span class="past-dot"> </span>';
+                else gridString += '<span class="future-dot">.</span>';
+
+                gridString += ' ';
+                if (i % 13 === 0) gridString += '\n';
+            }
+            element.innerHTML = gridString;
+        }
+
+        function getWeekNumber(d) {
+            d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+            var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+            return weekNo;
+        }
+
+        // --- Event Listeners ---
+        screens.status.addEventListener('click', initYearMap);
+        screens.year.addEventListener('click', () => showScreen('status'));
+
+        // Keyboard Nav
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') navigate(-1);
+            if (e.key === 'ArrowRight') navigate(1);
+        });
+
+        // Init Nav Buttons
+        updateNavButtons();
+
+    </script>
+</body>
+
+</html>

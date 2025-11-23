@@ -1,104 +1,37 @@
 <script lang="ts">
-    import { onMount, createEventDispatcher } from "svelte";
+    import { createEventDispatcher } from "svelte";
     import { fade } from "svelte/transition";
+
+    export let age: number | null = null;
 
     const dispatch = createEventDispatcher();
 
-    let questionText = "First things first... how old are you?";
-    let displayedQuestion = "";
-    let isInputVisible = false;
-    export let age: number | null = null;
-    let abortController: AbortController | null = null;
-
-    onMount(() => {
-        abortController = new AbortController();
-        runInputSequence(abortController.signal);
-        return () => {
-            if (abortController) abortController.abort();
-        };
-    });
-
-    async function typeText(
-        text: string,
-        onUpdate: (s: string) => void,
-        speed = 100,
-        signal: AbortSignal,
-    ) {
-        for (let i = 0; i <= text.length; i++) {
-            if (signal.aborted) return;
-            onUpdate(text.slice(0, i));
-            await new Promise((r) => setTimeout(r, speed));
-        }
-    }
-
-    async function runInputSequence(signal: AbortSignal) {
-        displayedQuestion = "";
-        isInputVisible = false;
-
-        // 1. Type Question
-        await typeText(
-            questionText,
-            (s) => (displayedQuestion = s),
-            80,
-            signal,
-        );
-        if (signal.aborted) return;
-
-        // 2. Show Input
-        isInputVisible = true;
-    }
-
-    function handleAgeSubmit(e: KeyboardEvent) {
-        if (e.key === "Enter") {
-            const input = e.target as HTMLInputElement;
-            const val = parseInt(input.value);
-            if (!isNaN(val)) {
-                age = val;
-                dispatch("submit", age);
-            }
+    function handleSubmit() {
+        if (age !== null && age > 0) {
+            dispatch("submit", age);
         }
     }
 </script>
 
-<div class="input-container">
-    <h1>{displayedQuestion}<span class="cursor"></span></h1>
-    {#if isInputVisible}
+<div class="input-container" in:fade>
+    <h2>First things first, what's your age?</h2>
+
+    <div class="input-wrapper">
         <input
             type="number"
             bind:value={age}
-            onkeydown={handleAgeSubmit}
-            placeholder="Enter age..."
-            autofocus
-            in:fade
+            placeholder="Age"
+            min="1"
+            max="120"
+            on:keydown={(e) => e.key === "Enter" && handleSubmit()}
         />
-    {/if}
+        <button on:click={handleSubmit} disabled={!age || age <= 0}>
+            Enter
+        </button>
+    </div>
 </div>
 
 <style>
-    h1 {
-        font-size: 3rem;
-        font-weight: normal;
-        white-space: pre-line;
-        text-align: center;
-        line-height: 1.5;
-    }
-
-    .cursor {
-        display: inline-block;
-        width: 10px;
-        height: 1em;
-        background-color: white;
-        margin-left: 5px;
-        vertical-align: bottom;
-        animation: blink 1s step-end infinite;
-    }
-
-    @keyframes blink {
-        50% {
-            opacity: 0;
-        }
-    }
-
     .input-container {
         display: flex;
         flex-direction: column;
@@ -106,19 +39,36 @@
         gap: 2rem;
     }
 
-    input {
-        background: transparent;
-        border: none;
-        border-bottom: 2px solid white;
-        color: white;
+    h2 {
         font-size: 2rem;
+        font-weight: normal;
         text-align: center;
-        font-family: monospace;
-        outline: none;
-        width: 200px;
+        margin: 0;
+        color: white;
     }
 
-    /* Remove spinner for number input */
+    .input-wrapper {
+        display: flex;
+        gap: 1rem;
+    }
+
+    input {
+        font-size: 2rem;
+        padding: 0.5rem;
+        width: 100px;
+        text-align: center;
+        background: transparent;
+        border: 2px solid white;
+        color: white;
+        border-radius: 8px;
+    }
+
+    input:focus {
+        outline: none;
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Remove spinner buttons */
     input::-webkit-outer-spin-button,
     input::-webkit-inner-spin-button {
         -webkit-appearance: none;
@@ -126,5 +76,25 @@
     }
     input[type="number"] {
         -moz-appearance: textfield;
+    }
+
+    button {
+        font-size: 1.5rem;
+        padding: 0.5rem 2rem;
+        background: white;
+        color: black;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: transform 0.1s;
+    }
+
+    button:hover:not(:disabled) {
+        transform: scale(1.05);
+    }
+
+    button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 </style>
