@@ -37,15 +37,61 @@
     export let showWelcome = false;
 
     // State
-    let viewMode: "total" | "yearly" = "total";
+    let viewMode: "total" | "yearly" | "deadline" = "total";
+    let isMobileMenuOpen = false; // For mobile dropdown
     let dots: { cell: HTMLElement; dot: HTMLElement }[] = [];
     let currentDisplayedValue = 0; // Generalized from 'Month'
     let lastRenderedIndex = 0;
     let pacman: HTMLElement | null = null;
+    
+    // Deadline State
+    let deadlineDateStr = "";
+    let deadlineTimeStr = "00:00";
+    let showDeadlineInput = false;
+    let deadlineDate: Date | null = null;
+    
+    // Always use current time as start date
+    $: startDate = new Date();
 
     // Derived Year Stats
     $: currentYear = new Date().getFullYear();
     $: now = new Date();
+    
+    // Update dates from strings
+    $: if (deadlineDateStr) {
+        const d = new Date(deadlineDateStr + 'T' + deadlineTimeStr);
+        if (!isNaN(d.getTime())) {
+            deadlineDate = d;
+        }
+    }
+
+    // Deadline Calculations
+    $: deadlineDiffMs = (deadlineDate) ? deadlineDate.getTime() - now.getTime() : 0;
+    
+    onMount(() => {
+        const interval = setInterval(() => {
+            now = new Date();
+        }, 1000); // Update every second
+        return () => clearInterval(interval);
+    });
+
+    $: totalDeadlineSpanMs = (deadlineDate) ? deadlineDate.getTime() - startDate.getTime() : 1;
+    $: deadlineConsumedMs = 0; // Since start is now.
+    
+    $: effectiveDeadlineDiffMs = deadlineDiffMs * (1 - totalExcludedRatio);
+    $: deadlineWeeksLeft = Math.max(0, Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60 * 24 * 7)));
+    $: deadlineDaysLeft = Math.max(0, Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60 * 24)));
+    $: deadlineHoursLeft = Math.max(0, Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60)));
+    
+    // Progress for Pacman (0 to 1) - based on capacity reduction
+    $: deadlineProgressRaw = 0; // Time passed is 0
+        
+    $: deadlinePercentLeft = 0; // Not used really, we use capacity
+         
+    $: deadlinePercentCapacity = (deadlineDate && totalDeadlineSpanMs > 0)
+        ? (effectiveDeadlineDiffMs / totalDeadlineSpanMs) * 100
+        : 100; // Default to 100% capacity (0% consumed) if no deadline set
+
     $: startOfYear = new Date(currentYear, 0, 1);
     $: endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
     $: diffMs = endOfYear.getTime() - now.getTime();
@@ -70,17 +116,15 @@
         let target;
         if (viewMode === "total") {
             target = effectiveMonthsConsumed;
-        } else {
-            // For yearly (48 dots), calculate based on percentage of year passed
-            // The yearPercentLeft now already includes the exclusion ratio (it is smaller)
-            // So "consumed" is 100% - "remaining%"
-            // But we need to be careful.
-            // Original: yearProgress = 1 - yearPercentLeft / 100
-            // If yearPercentLeft is reduced by exclusions, yearProgress (consumed) increases.
-            // This matches the "Total" behavior where excluded time is treated as consumed.
-            
+        } else if (viewMode === "yearly") {
             const yearProgress = 1 - yearPercentLeft / 100;
             target = yearProgress * 48;
+        } else if (viewMode === "deadline") {
+            // Deadline logic
+            // If no deadline is set, deadlinePercentCapacity defaults to 100 (all capacity available).
+            // Progress = 1 - (100/100) = 0.
+            const deadlineProgress = 1 - (deadlinePercentCapacity / 100);
+            target = Math.min(48, Math.max(0, deadlineProgress * 48));
         }
         animateTo(target);
     }
@@ -122,7 +166,7 @@
             cell.className = "grid-cell";
 
             // Adjust cell size for yearly mode to be chunkier
-            if (viewMode === "yearly") {
+            if (viewMode === "yearly" || viewMode === "deadline") {
                 cell.style.height = "25px"; // Bigger cells
                 // Width defaults to auto (fill column), which centers the dot via flexbox
             }
@@ -131,7 +175,7 @@
             dot.className = "grid-dot future";
 
             // Adjust dot size for yearly mode
-            if (viewMode === "yearly") {
+            if (viewMode === "yearly" || viewMode === "deadline") {
                 dot.style.width = "10px"; // Bigger dots
                 dot.style.height = "10px";
             }
@@ -149,7 +193,7 @@
         }
 
         // Adjust grid columns for yearly mode
-        if (viewMode === "yearly") {
+        if (viewMode === "yearly" || viewMode === "deadline") {
             gridContainer.style.gridTemplateColumns = "repeat(4, 1fr)"; // 4 columns (weeks)
             gridContainer.style.maxWidth = "160px"; // Narrow layout for 4 cols
             gridContainer.style.gap = "4px"; // Slightly more gap
@@ -241,7 +285,7 @@
         </div>
     {/if}
 
-    <div class="view-toggle">
+    <div class="view-toggle desktop-only">
         <button
             class="toggle-btn"
             class:active={viewMode === "total"}
@@ -252,7 +296,54 @@
             class:active={viewMode === "yearly"}
             on:click={() => (viewMode = "yearly")}>YEARLY</button
         >
+        <button
+            class="toggle-btn"
+            class:active={viewMode === "deadline"}
+            on:click={() => (viewMode = "deadline")}>DEADLINE</button
+        >
     </div>
+    
+    <!-- Mobile Dropdown -->
+    <div class="mobile-toggle-wrapper mobile-only">
+        <button class="mobile-mode-btn" on:click={() => isMobileMenuOpen = !isMobileMenuOpen}>
+            MODE: {viewMode.toUpperCase()} {isMobileMenuOpen ? '▲' : '▼'}
+        </button>
+        
+        {#if isMobileMenuOpen}
+            <div class="mobile-dropdown">
+                <button 
+                    class="dropdown-item" 
+                    class:selected={viewMode === "total"}
+                    on:click={() => { viewMode = "total"; isMobileMenuOpen = false; }}>
+                    > TOTAL VIEW
+                </button>
+                <button 
+                    class="dropdown-item" 
+                    class:selected={viewMode === "yearly"}
+                    on:click={() => { viewMode = "yearly"; isMobileMenuOpen = false; }}>
+                    > YEARLY VIEW
+                </button>
+                <button 
+                    class="dropdown-item" 
+                    class:selected={viewMode === "deadline"}
+                    on:click={() => { viewMode = "deadline"; isMobileMenuOpen = false; }}>
+                    > DEADLINE VIEW
+                </button>
+            </div>
+        {/if}
+    </div>
+    
+    {#if viewMode === "deadline"}
+        <div class="deadline-inputs">
+            <div class="input-group">
+                <label>SELECT DEADLINE</label>
+                <div class="date-time-wrapper">
+                    <input type="date" bind:value={deadlineDateStr} />
+                    <input type="time" bind:value={deadlineTimeStr} />
+                </div>
+            </div>
+        </div>
+    {/if}
 
     <div class="main-content">
         <div class="grid-wrapper" bind:this={gridContainer}></div>
@@ -285,7 +376,7 @@
                         >{effectivePercentLeft.toFixed(1)}%</span
                     >
                 </div>
-            {:else}
+            {:else if viewMode === "yearly"}
                 <div class="stat-header">YEAR {currentYear}:</div>
                 <div class="stat-item">
                     WEEKS: <span class="white">{yearWeeksLeft}</span>
@@ -304,6 +395,31 @@
                         >{yearPercentLeft.toFixed(1)}%</span
                     >
                 </div>
+            {:else if viewMode === "deadline"}
+                <div class="stat-header">DEADLINE:</div>
+                 {#if !deadlineDate}
+                    <div class="stat-item">PLEASE SELECT A DATE</div>
+                 {:else if deadlineDiffMs < 0}
+                    <div class="stat-item text-red">DEADLINE PASSED</div>
+                 {:else}
+                    <div class="stat-item">
+                        WEEKS: <span class="white">{deadlineWeeksLeft}</span>
+                    </div>
+                    <div class="stat-item">
+                        DAYS: <span class="blue">{deadlineDaysLeft}</span>
+                    </div>
+                    <div class="stat-item">
+                        HOURS: <span class="green"
+                            >{deadlineHoursLeft.toLocaleString()}</span
+                        >
+                    </div>
+                    <div class="separator">---</div>
+                    <div class="stat-item">
+                        REMAINING: <span class="green"
+                            >{deadlinePercentCapacity.toFixed(1)}%</span
+                        >
+                    </div>
+                 {/if}
             {/if}
         </div>
     </div>
@@ -375,6 +491,129 @@
         text-shadow: 0 0 5px #ffff00;
         border-bottom: 2px solid #ffff00;
     }
+
+    /* Mobile specific styles */
+    .mobile-only {
+        display: none;
+    }
+    
+    .mobile-toggle-wrapper {
+        position: relative;
+        margin-bottom: 1rem;
+        z-index: 50;
+        width: 100%;
+        justify-content: center;
+        /* display depends on media query below */
+    }
+    
+    .mobile-mode-btn {
+        background: #000;
+        color: #ffff00;
+        border: 2px solid #ffff00;
+        font-family: "Press Start 2P", cursive;
+        padding: 0.8rem 1.5rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        width: 100%;
+        max-width: 300px;
+        text-align: center;
+        box-shadow: 4px 4px 0px rgba(0,255,0,0.2);
+    }
+    
+    .mobile-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 100%;
+        max-width: 300px;
+        background: #000;
+        border: 2px solid #444;
+        display: flex;
+        flex-direction: column;
+        margin-top: 0.5rem;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.9);
+    }
+    
+    .dropdown-item {
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid #222;
+        color: #888;
+        font-family: inherit;
+        padding: 1rem;
+        text-align: left;
+        cursor: pointer;
+        font-size: 0.7rem;
+        transition: all 0.2s;
+    }
+    
+    .dropdown-item:hover {
+        background: #111;
+        color: #fff;
+        padding-left: 1.5rem;
+    }
+    
+    .dropdown-item.selected {
+        color: #ffff00;
+        background: #111;
+        border-left: 4px solid #ffff00;
+    }
+    
+    /* Responsive Switch */
+    @media (max-width: 899px) {
+        .desktop-only {
+            display: none !important;
+        }
+        .mobile-only {
+            display: flex; /* Was display: none by default */
+        }
+    }
+
+    .deadline-inputs {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .input-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.2rem;
+    }
+    
+    .input-group label {
+        font-size: 0.6rem;
+        color: #888;
+    }
+
+    input[type="date"],
+    input[type="time"] {
+        background: transparent;
+        border: 1px solid #444;
+        color: #fff;
+        font-family: inherit;
+        padding: 0.3rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        outline: none;
+    }
+    
+    input[type="date"]::-webkit-calendar-picker-indicator,
+    input[type="time"]::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+        cursor: pointer;
+    }
+    
+    .date-time-wrapper {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .text-red { color: #ff3333; }
 
     .welcome-text {
         font-size: 1.5rem; /* Bigger welcome text */
