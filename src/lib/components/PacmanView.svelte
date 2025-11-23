@@ -34,25 +34,58 @@
 
     let gridContainer: HTMLElement;
     let animationInterval: any;
+    export let showWelcome = false;
 
     // State
+    let viewMode: "total" | "yearly" = "total";
     let dots: { cell: HTMLElement; dot: HTMLElement }[] = [];
-    let currentDisplayedMonth = 0;
+    let currentDisplayedValue = 0; // Generalized from 'Month'
+    let lastRenderedIndex = 0;
     let pacman: HTMLElement | null = null;
 
-    // Initialize Grid only when totalMonths changes or on mount
-    $: if (gridContainer && totalMonths) {
+    // Derived Year Stats
+    $: currentYear = new Date().getFullYear();
+    $: now = new Date();
+    $: startOfYear = new Date(currentYear, 0, 1);
+    $: endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
+    $: diffMs = endOfYear.getTime() - now.getTime();
+    $: yearWeeksLeft = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+    $: yearDaysLeft = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    $: yearHoursLeft = Math.floor(diffMs / (1000 * 60 * 60));
+    $: yearPercentLeft =
+        (diffMs / (endOfYear.getTime() - startOfYear.getTime())) * 100;
+    $: currentWeek = getWeekNumber(now);
+
+    // React to viewMode changes
+    $: if (gridContainer && (viewMode || totalMonths)) {
         initGrid();
     }
 
-    // Animate whenever the target changes
+    // Animate whenever the target changes (Total or Yearly)
     $: if (dots.length > 0) {
-        animateTo(effectiveMonthsConsumed);
+        let target;
+        if (viewMode === "total") {
+            target = effectiveMonthsConsumed;
+        } else {
+            // For yearly (48 dots), calculate based on percentage of year passed
+            const yearProgress = 1 - yearPercentLeft / 100;
+            target = yearProgress * 48;
+        }
+        animateTo(target);
     }
 
     onDestroy(() => {
         if (animationInterval) clearInterval(animationInterval);
     });
+
+    function getWeekNumber(d: Date) {
+        d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+        var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil(
+            ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+        );
+    }
 
     function initGrid() {
         if (!gridContainer) return;
@@ -60,7 +93,8 @@
         // Clear existing
         gridContainer.innerHTML = "";
         dots = [];
-        currentDisplayedMonth = 0;
+        currentDisplayedValue = 0;
+        lastRenderedIndex = 0;
 
         // Create Pacman element once
         pacman = document.createElement("div");
@@ -68,105 +102,200 @@
 
         const fragment = document.createDocumentFragment();
 
-        for (let i = 0; i < totalMonths; i++) {
+        // Determine grid size based on mode
+        // Yearly: 12 months * 4 weeks = 48 dots
+        const totalItems = viewMode === "total" ? totalMonths : 48;
+
+        for (let i = 0; i < totalItems; i++) {
             const cell = document.createElement("div");
             cell.className = "grid-cell";
 
+            // Adjust cell size for yearly mode to be chunkier
+            if (viewMode === "yearly") {
+                cell.style.height = "25px"; // Bigger cells
+                // Width defaults to auto (fill column), which centers the dot via flexbox
+            }
+
             const dot = document.createElement("div");
             dot.className = "grid-dot future";
+
+            // Adjust dot size for yearly mode
+            if (viewMode === "yearly") {
+                dot.style.width = "10px"; // Bigger dots
+                dot.style.height = "10px";
+            }
 
             cell.appendChild(dot);
             fragment.appendChild(cell);
             dots.push({ cell, dot });
         }
         gridContainer.appendChild(fragment);
+
+        // Initialize first position
+        if (dots.length > 0 && pacman) {
+            dots[0].cell.appendChild(pacman);
+            dots[0].dot.style.display = "none";
+        }
+
+        // Adjust grid columns for yearly mode
+        if (viewMode === "yearly") {
+            gridContainer.style.gridTemplateColumns = "repeat(4, 1fr)"; // 4 columns (weeks)
+            gridContainer.style.maxWidth = "160px"; // Narrow layout for 4 cols
+            gridContainer.style.gap = "4px"; // Slightly more gap
+        } else {
+            gridContainer.style.gridTemplateColumns = "repeat(24, 1fr)";
+            gridContainer.style.maxWidth = "650px";
+            gridContainer.style.gap = "1px";
+        }
     }
 
     function animateTo(target: number) {
         if (animationInterval) clearInterval(animationInterval);
 
-        const totalDiff = Math.abs(target - currentDisplayedMonth);
+        const totalDiff = Math.abs(target - currentDisplayedValue);
         const intervalMs = 30;
-        const maxDurationMs = 3000; // Max 3 seconds
+        const maxDurationMs = 2000; // Faster animation for switch
         const maxFrames = maxDurationMs / intervalMs;
 
-        // Base speed: minimum units per frame (prevents crawling on short distances)
-        // Required speed: units per frame to finish in maxDuration
         const baseSpeed = 0.5;
         const requiredSpeed = totalDiff / maxFrames;
         const speed = Math.max(baseSpeed, requiredSpeed);
 
         animationInterval = setInterval(() => {
-            if (Math.abs(currentDisplayedMonth - target) < speed) {
-                currentDisplayedMonth = target;
-                updateVisuals(currentDisplayedMonth, currentDisplayedMonth); // Snap to final
+            if (Math.abs(currentDisplayedValue - target) < speed) {
+                currentDisplayedValue = target;
+                updateVisuals(currentDisplayedValue); // Snap to final
                 clearInterval(animationInterval);
                 return;
             }
 
-            const diff = target - currentDisplayedMonth;
+            const diff = target - currentDisplayedValue;
             const direction = Math.sign(diff);
 
             // Calculate next step
             const step = direction * speed;
-            const nextMonth = currentDisplayedMonth + step;
+            currentDisplayedValue += step;
 
-            updateVisuals(currentDisplayedMonth, nextMonth);
-            currentDisplayedMonth = nextMonth;
+            updateVisuals(currentDisplayedValue);
         }, intervalMs);
     }
 
-    function updateVisuals(from: number, to: number) {
-        const start = Math.floor(Math.min(from, to));
-        const end = Math.floor(Math.max(from, to));
-        const isEating = to > from;
+    function updateVisuals(currentFloat: number) {
+        const newIndex = Math.floor(currentFloat);
 
-        // Update dots in the range
-        for (let i = start; i <= end; i++) {
+        // If we haven't moved to a new cell, just return
+        if (newIndex === lastRenderedIndex) return;
+
+        const direction = Math.sign(newIndex - lastRenderedIndex);
+
+        // Walk from the last known position to the new position
+        let i = lastRenderedIndex;
+
+        // Safety break to prevent infinite loops if logic fails
+        let steps = 0;
+        while (i !== newIndex && steps < 1000) {
             const item = dots[i];
-            if (!item) continue;
-
-            if (isEating) {
-                item.dot.className = "grid-dot past";
-                item.dot.style.display = "none";
-            } else {
-                // Reappearing
-                item.dot.className = "grid-dot future";
-                item.dot.style.display = "block";
+            if (item) {
+                if (direction > 0) {
+                    item.dot.className = "grid-dot past";
+                    item.dot.style.display = "block";
+                } else {
+                    item.dot.className = "grid-dot future";
+                    item.dot.style.display = "block";
+                }
             }
+            i += direction;
+            steps++;
         }
 
-        // Move Pacman
-        const pacmanIndex = Math.floor(to);
-        const targetItem = dots[pacmanIndex];
-
+        // Now i is the newIndex
+        const targetItem = dots[newIndex];
         if (targetItem && pacman) {
-            // Ensure pacman is in the right cell
             if (pacman.parentElement !== targetItem.cell) {
                 targetItem.cell.appendChild(pacman);
             }
-            // Ensure the dot under pacman is hidden (even if we just restored it)
             targetItem.dot.style.display = "none";
         }
+
+        lastRenderedIndex = newIndex;
     }
 </script>
 
 <div class="pacman-container">
-    <div class="stats">
-        <div class="stat">AGE: <span class="white">{userData.age}</span></div>
-        <div class="stat">
-            MONTHS LEFT: <span class="blue"
-                >{Math.round(effectiveMonthsLeft).toLocaleString()}</span
-            >
+    {#if showWelcome}
+        <div class="welcome-text">
+            WELCOME TO REAL LIFE, <span class="text-yellow"
+                >{userData.name}</span
+            >.
         </div>
-        <div class="stat">
-            REMAINING TIME: <span class="green"
-                >{effectivePercentLeft.toFixed(1)}%</span
-            >
-        </div>
+    {/if}
+
+    <div class="view-toggle">
+        <button
+            class="toggle-btn"
+            class:active={viewMode === "total"}
+            on:click={() => (viewMode = "total")}>TOTAL</button
+        >
+        <button
+            class="toggle-btn"
+            class:active={viewMode === "yearly"}
+            on:click={() => (viewMode = "yearly")}>YEARLY</button
+        >
     </div>
 
-    <div class="grid-wrapper" bind:this={gridContainer}></div>
+    <div class="main-content">
+        <div class="grid-wrapper" bind:this={gridContainer}></div>
+
+        <div class="stats">
+            {#if viewMode === "total"}
+                <div class="stat-header">TIME LEFT:</div>
+                <div class="stat-item">
+                    YEARS: <span class="white"
+                        >{Math.floor(effectiveMonthsLeft / 12)}</span
+                    >
+                </div>
+                <div class="stat-item">
+                    MONTHS: <span class="blue"
+                        >{Math.round(
+                            effectiveMonthsLeft,
+                        ).toLocaleString()}</span
+                    >
+                </div>
+                <div class="stat-item">
+                    WEEKS: <span class="green"
+                        >{Math.round(
+                            effectiveMonthsLeft * 4.345,
+                        ).toLocaleString()}</span
+                    >
+                </div>
+                <div class="separator">---</div>
+                <div class="stat-item">
+                    REMAINING: <span class="green"
+                        >{effectivePercentLeft.toFixed(1)}%</span
+                    >
+                </div>
+            {:else}
+                <div class="stat-header">YEAR {currentYear}:</div>
+                <div class="stat-item">
+                    WEEKS: <span class="white">{yearWeeksLeft}</span>
+                </div>
+                <div class="stat-item">
+                    DAYS: <span class="blue">{yearDaysLeft}</span>
+                </div>
+                <div class="stat-item">
+                    HOURS: <span class="green"
+                        >{yearHoursLeft.toLocaleString()}</span
+                    >
+                </div>
+                <div class="separator">---</div>
+                <div class="stat-item">
+                    REMAINING: <span class="green"
+                        >{yearPercentLeft.toFixed(1)}%</span
+                    >
+                </div>
+            {/if}
+        </div>
+    </div>
 
     <div class="toggles">
         <button
@@ -201,18 +330,119 @@
         gap: 1.5rem;
         width: 100%;
         height: 100%;
-        font-family: "Courier New", Courier, monospace;
+        font-family: "Press Start 2P", cursive; /* Retro font */
+        overflow-y: auto;
+        padding: 1rem;
+        box-sizing: border-box;
+        font-size: 0.8rem; /* Base size adjustment for this font */
+    }
+
+    .view-toggle {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .toggle-btn {
+        background: transparent;
+        border: none;
+        color: #666;
+        font-family: inherit;
+        font-size: 1rem;
+        cursor: pointer;
+        padding: 0.5rem 1rem;
+        transition: all 0.2s;
+    }
+
+    .toggle-btn:hover {
+        color: #fff;
+        text-shadow: 0 0 5px #fff;
+    }
+
+    .toggle-btn.active {
+        color: #ffff00;
+        text-shadow: 0 0 5px #ffff00;
+        border-bottom: 2px solid #ffff00;
+    }
+
+    .welcome-text {
+        font-size: 1.5rem; /* Bigger welcome text */
+        color: white;
+        text-align: center;
+        margin-bottom: 1rem;
+        line-height: 1.5;
+    }
+
+    .text-yellow {
+        color: #ffff00;
+    }
+
+    .main-content {
+        display: flex;
+        flex-direction: column-reverse; /* Stats on top of Grid on mobile */
+        align-items: center;
+        gap: 2rem;
+        width: 100%;
     }
 
     .stats {
-        display: flex;
-        flex-direction: column; /* Vertical stack */
-        align-items: center;
-        gap: 0.5rem;
-        font-size: 1.2rem;
+        display: none; /* Hidden by default (mobile/tablet) */
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+        font-size: 0.9rem;
         color: #888;
+        line-height: 1.6;
+        width: 100%;
+        max-width: 650px;
+    }
+
+    .stat-header {
+        color: #888;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-item {
+        color: #888;
+    }
+
+    .separator {
+        color: #444;
         font-weight: bold;
-        text-align: center;
+    }
+
+    /* Desktop Layout: Side by Side with Absolute Positioning */
+    @media (min-width: 900px) {
+        .main-content {
+            flex-direction: row;
+            display: block; /* Block layout for the wrapper */
+            width: 650px; /* Fixed width matching the grid */
+            margin: 0 auto; /* Center the 650px block */
+            position: relative; /* Anchor for absolute stats */
+            overflow: visible; /* Allow stats to hang out */
+        }
+
+        .grid-wrapper {
+            width: 100%; /* Fill the centered container */
+        }
+
+        .stats {
+            display: flex; /* Ensure visible on desktop */
+            position: absolute; /* Take out of flow */
+            left: 100%; /* Move to right edge of container */
+            top: 0;
+            margin-left: 2rem; /* Gap */
+            align-items: flex-start;
+            text-align: left;
+            width: 250px;
+            margin-top: 0;
+        }
+    }
+
+    .stat {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
     }
 
     .white {
@@ -228,7 +458,7 @@
     .toggles {
         display: flex;
         gap: 1rem;
-        flex-wrap: wrap; /* Allow wrapping on small screens */
+        flex-wrap: wrap;
         justify-content: center;
         margin-top: 1rem;
     }
@@ -237,11 +467,12 @@
         background: transparent;
         border: 2px solid #444;
         color: #666;
-        padding: 0.5rem 1rem;
+        padding: 0.8rem 1rem;
         font-family: inherit;
-        font-size: 0.9rem;
+        font-size: 0.7rem;
         cursor: pointer;
         transition: all 0.2s;
+        line-height: 1.2;
     }
 
     .pixel-btn:hover {
@@ -257,12 +488,11 @@
 
     .grid-wrapper {
         display: grid;
-        grid-template-columns: repeat(24, 1fr); /* 2 Years per row */
+        grid-template-columns: repeat(24, 1fr);
         gap: 1px;
         width: 100%;
-        max-width: 650px; /* Cap width on desktop to keep dots packed */
+        max-width: 650px;
         height: auto;
-        /* Removed max-height/overflow to ensure border always wraps content with padding */
         padding: 0.5rem;
         background: rgba(0, 0, 0, 0.5);
         border: 2px solid #333;
@@ -280,22 +510,22 @@
     }
 
     :global(.grid-dot) {
-        width: 6px; /* Smaller dots */
-        height: 6px;
+        width: 4px; /* Smaller dots */
+        height: 4px;
         border-radius: 50%;
     }
 
     :global(.grid-dot.future) {
-        background-color: #444;
+        background-color: #ffffff; /* White for remaining */
     }
 
     :global(.grid-dot.past) {
-        background-color: #111;
+        background-color: #333; /* Dim gray for eaten */
     }
 
     :global(.pacman-shape) {
-        width: 8px; /* Adjusted Pacman size */
-        height: 8px;
+        width: 14px; /* Bigger Pacman */
+        height: 14px;
         background: #ffff00;
         border-radius: 50%;
         clip-path: polygon(

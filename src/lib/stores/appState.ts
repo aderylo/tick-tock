@@ -7,6 +7,7 @@ export interface AppState {
     mode: AppMode;
     currentView: ViewType;
     userData: {
+        name: string;
         age: number | null;
         lifeExpectancy: number;
         sleepHours: number;
@@ -21,6 +22,7 @@ const initialState: AppState = {
     mode: 'intro',
     currentView: 'big-picture',
     userData: {
+        name: 'TRAVELLER',
         age: null,
         lifeExpectancy: 80,
         sleepHours: 8,

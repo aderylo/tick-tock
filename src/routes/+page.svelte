@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { appState, setMode, updateUserData } from "$lib/stores/appState";
+    import { appState } from "$lib/stores/appState";
     import LeftSidebar from "$lib/components/LeftSidebar.svelte";
     import RightSidebar from "$lib/components/RightSidebar.svelte";
     import BigPictureView from "$lib/components/BigPictureView.svelte";
@@ -7,34 +7,17 @@
     import MonthlyView from "$lib/components/MonthlyView.svelte";
     import WeeklyView from "$lib/components/WeeklyView.svelte";
     import CalendarView from "$lib/components/CalendarView.svelte";
-    import IntroView from "$lib/components/IntroView.svelte";
-    import AgeInputView from "$lib/components/AgeInputView.svelte";
+    import RetroIntroView from "$lib/components/RetroIntroView.svelte";
     import { fade } from "svelte/transition";
 
     $: currentView = $appState.currentView;
     $: mode = $appState.mode;
-
-    function handleIntroComplete() {
-        setMode("age-input");
-    }
-
-    function handleAgeSubmit(event: CustomEvent<number>) {
-        updateUserData({ age: event.detail });
-        setMode("dashboard");
-    }
 </script>
 
 <main>
     {#if mode === "intro"}
         <div class="fullscreen-center" in:fade>
-            <IntroView on:complete={handleIntroComplete} />
-        </div>
-    {:else if mode === "age-input"}
-        <div class="fullscreen-center" in:fade>
-            <AgeInputView
-                age={$appState.userData.age}
-                on:submit={handleAgeSubmit}
-            />
+            <RetroIntroView />
         </div>
     {:else}
         <div class="dashboard-layout" in:fade>
