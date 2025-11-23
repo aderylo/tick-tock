@@ -2,6 +2,7 @@
     import { appState, updateUserData, resetAppState } from "$lib/stores/appState";
     import { createEventDispatcher, onMount } from "svelte";
     import { fade } from "svelte/transition";
+    import RetroSelect from "$lib/components/RetroSelect.svelte";
 
     const dispatch = createEventDispatcher();
 
@@ -10,12 +11,33 @@
     let commuteTime = 1;
     let workDays = 5;
 
+    // Days 0-7
+    const days = Array.from({ length: 8 }, (_, i) => i);
+
+    // Derived options to prevent exceeding 24 hours total
+    $: sleepOptions = Array.from({ length: Math.max(0, 24 - workHours - commuteTime) + 1 }, (_, i) => i);
+    $: workOptions = Array.from({ length: Math.max(0, 24 - sleepHours - commuteTime) + 1 }, (_, i) => i);
+    $: commuteOptions = Array.from({ length: Math.max(0, 24 - sleepHours - workHours) + 1 }, (_, i) => i);
+
     // Initialize from store
     onMount(() => {
         const ud = $appState.userData;
-        sleepHours = ud.sleepHours;
-        workHours = ud.workHours;
-        commuteTime = ud.commuteTime;
+        
+        // Sanitize initial values
+        let s = ud.sleepHours;
+        let w = ud.workHours;
+        let c = ud.commuteTime;
+        
+        if (s + w + c > 24) {
+             // Naive reduction to ensure validity
+             if (c > 24 - s - w) c = Math.max(0, 24 - s - w);
+             if (w > 24 - s - c) w = Math.max(0, 24 - s - c);
+             if (s > 24 - w - c) s = Math.max(0, 24 - w - c);
+        }
+        
+        sleepHours = s;
+        workHours = w;
+        commuteTime = c;
         workDays = ud.workDays;
     });
 
@@ -50,53 +72,33 @@
     </div>
 
     <div class="settings-grid">
-        <div class="setting-item">
-            <label for="sleep">SLEEP (HRS/DAY)</label>
-            <input 
-                id="sleep" 
-                type="number" 
-                min="0" 
-                max="24" 
-                bind:value={sleepHours} 
-                on:change={saveSettings}
-            />
-        </div>
+        <RetroSelect 
+            label="SLEEP (HRS/DAY)" 
+            bind:value={sleepHours} 
+            options={sleepOptions} 
+            on:change={saveSettings} 
+        />
 
-        <div class="setting-item">
-            <label for="work">WORK (HRS/DAY)</label>
-            <input 
-                id="work" 
-                type="number" 
-                min="0" 
-                max="24" 
-                bind:value={workHours} 
-                on:change={saveSettings}
-            />
-        </div>
+        <RetroSelect 
+            label="WORK (HRS/DAY)" 
+            bind:value={workHours} 
+            options={workOptions} 
+            on:change={saveSettings} 
+        />
 
-        <div class="setting-item">
-            <label for="commute">COMMUTE (HRS/DAY)</label>
-            <input 
-                id="commute" 
-                type="number" 
-                min="0" 
-                max="24" 
-                bind:value={commuteTime} 
-                on:change={saveSettings}
-            />
-        </div>
+        <RetroSelect 
+            label="COMMUTE (HRS/DAY)" 
+            bind:value={commuteTime} 
+            options={commuteOptions} 
+            on:change={saveSettings} 
+        />
 
-        <div class="setting-item">
-            <label for="workdays">WORK DAYS (PER WEEK)</label>
-            <input 
-                id="workdays" 
-                type="number" 
-                min="0" 
-                max="7" 
-                bind:value={workDays} 
-                on:change={saveSettings}
-            />
-        </div>
+        <RetroSelect 
+            label="WORK DAYS (PER WEEK)" 
+            bind:value={workDays} 
+            options={days} 
+            on:change={saveSettings} 
+        />
     </div>
 
     <div class="flex flex-col items-center gap-4 mt-8">
@@ -157,49 +159,8 @@
         align-items: center;
         width: 100%;
     }
-
-    .setting-item {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 100%;
-        max-width: 300px;
-    }
-
-    label {
-        font-family: "Press Start 2P", cursive;
-        font-size: 0.7rem;
-        color: #aaa;
-        margin-bottom: 0.5rem;
-        letter-spacing: 1px;
-    }
-
-    input {
-        background: transparent;
-        border: 2px solid #333;
-        color: #ffffff;
-        font-family: "Press Start 2P", cursive;
-        font-size: 0.9rem;
-        outline: none;
-        padding: 0.8rem;
-        text-align: center;
-        width: 100%;
-        transition: border-color 0.3s;
-    }
-
-    input:focus {
-        border-color: #00ff00;
-    }
-
-    /* Hide spin buttons */
-    input::-webkit-outer-spin-button,
-    input::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
-    input[type=number] {
-        -moz-appearance: textfield;
-    }
+    
+    /* Old CSS for native select removed */
 
     .pixel-btn {
         background: transparent;

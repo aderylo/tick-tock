@@ -19,6 +19,11 @@ export interface AppState {
             date: string | null;
             time: string | null;
         };
+        exclusions: {
+            sleep: boolean;
+            work: boolean;
+            commute: boolean;
+        };
     };
 }
 
@@ -34,6 +39,11 @@ const defaultUserData = {
     deadline: {
         date: null,
         time: null
+    },
+    exclusions: {
+        sleep: false,
+        work: false,
+        commute: false
     }
 };
 

@@ -11,6 +11,30 @@
     let excludeWork = false;
     let excludeCommute = false;
 
+    // Init exclusions from store
+    onMount(() => {
+        if (userData.exclusions) {
+            excludeSleep = userData.exclusions.sleep;
+            excludeWork = userData.exclusions.work;
+            excludeCommute = userData.exclusions.commute;
+        }
+    });
+
+    // Watch and update store
+    $: if (typeof window !== 'undefined') {
+        // Only update if changed from initial load or user interaction
+        // But we need to avoid infinite loops or resetting on init before load
+        // Simple check: we rely on onMount to set initial values, 
+        // then this reactive block updates store on future changes
+        updateUserData({
+            exclusions: {
+                sleep: excludeSleep,
+                work: excludeWork,
+                commute: excludeCommute
+            }
+        });
+    }
+
     // Ratios (0-1)
     $: sleepRatio = excludeSleep ? userData.sleepHours / 24 : 0;
     $: workRatio = excludeWork
