@@ -51,21 +51,25 @@
         background-color: black;
         color: white;
         margin: 0;
-        height: 100vh;
+        min-height: 100vh; /* Allow growing */
         width: 100vw;
-        font-family: "Inter", sans-serif; /* Modern font */
-        overflow: hidden;
+        font-family: "Inter", sans-serif;
+        /* overflow: hidden; Removed to allow browser UI to collapse */
+        overflow-y: auto;
     }
 
     main {
         width: 100%;
-        height: 100%;
+        min-height: 100vh; /* Match body */
         position: relative;
+        /* Force a bit of extra height on mobile to trigger scroll */
+        padding-bottom: 1px; 
     }
 
+    /* Ensure full height for desktop still works */
     .fullscreen-center {
         width: 100%;
-        height: 100%;
+        height: 100vh; /* Restored fixed height for children to calculate % against */
         display: flex;
         justify-content: center;
         align-items: center;
@@ -73,19 +77,18 @@
 
     .dashboard-layout {
         width: 100%;
-        height: 100%;
+        height: 100vh; /* Restored fixed height */
         display: flex;
     }
 
     .center-stage {
         flex: 1;
-        height: 100%;
+        height: 100%; /* Match parent */
         display: flex;
         justify-content: center;
         align-items: center;
         position: relative;
-        z-index: 1; /* Below sidebars */
-        overflow-y: auto; /* Allow scrolling if content is tall */
+        z-index: 1;
     }
 
     .view-container {
