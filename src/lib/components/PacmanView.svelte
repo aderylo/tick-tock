@@ -49,11 +49,15 @@
     $: startOfYear = new Date(currentYear, 0, 1);
     $: endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
     $: diffMs = endOfYear.getTime() - now.getTime();
-    $: yearWeeksLeft = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
-    $: yearDaysLeft = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    $: yearHoursLeft = Math.floor(diffMs / (1000 * 60 * 60));
+    
+    // Apply exclusions to remaining time
+    $: effectiveDiffMs = diffMs * (1 - totalExcludedRatio);
+
+    $: yearWeeksLeft = Math.floor(effectiveDiffMs / (1000 * 60 * 60 * 24 * 7));
+    $: yearDaysLeft = Math.floor(effectiveDiffMs / (1000 * 60 * 60 * 24));
+    $: yearHoursLeft = Math.floor(effectiveDiffMs / (1000 * 60 * 60));
     $: yearPercentLeft =
-        (diffMs / (endOfYear.getTime() - startOfYear.getTime())) * 100;
+        (effectiveDiffMs / (endOfYear.getTime() - startOfYear.getTime())) * 100;
     $: currentWeek = getWeekNumber(now);
 
     // React to viewMode changes
@@ -68,6 +72,13 @@
             target = effectiveMonthsConsumed;
         } else {
             // For yearly (48 dots), calculate based on percentage of year passed
+            // The yearPercentLeft now already includes the exclusion ratio (it is smaller)
+            // So "consumed" is 100% - "remaining%"
+            // But we need to be careful.
+            // Original: yearProgress = 1 - yearPercentLeft / 100
+            // If yearPercentLeft is reduced by exclusions, yearProgress (consumed) increases.
+            // This matches the "Total" behavior where excluded time is treated as consumed.
+            
             const yearProgress = 1 - yearPercentLeft / 100;
             target = yearProgress * 48;
         }
