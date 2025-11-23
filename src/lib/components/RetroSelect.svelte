@@ -2,8 +2,8 @@
     import { createEventDispatcher } from "svelte";
     import { fade, slide } from "svelte/transition";
 
-    export let value: number;
-    export let options: number[];
+    export let value: any;
+    export let options: any[];
     export let label: string;
 
     const labelId = `label-${Math.random().toString(36).substr(2, 9)}`;
@@ -15,7 +15,7 @@
         isOpen = !isOpen;
     }
 
-    function select(opt: number) {
+    function select(opt: any) {
         value = opt;
         isOpen = false;
         dispatch("change", value);

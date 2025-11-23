@@ -3,6 +3,7 @@
     import { createEventDispatcher, onMount } from "svelte";
     import { fade } from "svelte/transition";
     import RetroSelect from "$lib/components/RetroSelect.svelte";
+    import { COUNTRY_LIST } from "$lib/utils/lifeExpectancy";
 
     const dispatch = createEventDispatcher();
 
@@ -10,6 +11,7 @@
     let workHours = 8;
     let commuteTime = 1;
     let workDays = 5;
+    let country = "Germany";
 
     // Days 0-7
     const days = Array.from({ length: 8 }, (_, i) => i);
@@ -39,6 +41,7 @@
         workHours = w;
         commuteTime = c;
         workDays = ud.workDays;
+        country = ud.country || "Germany";
     });
 
     // Update store when values change
@@ -47,7 +50,8 @@
             sleepHours,
             workHours,
             commuteTime,
-            workDays
+            workDays,
+            country
         });
     }
 
@@ -72,6 +76,13 @@
     </div>
 
     <div class="settings-grid">
+        <RetroSelect 
+            label="COUNTRY / REGION" 
+            bind:value={country} 
+            options={COUNTRY_LIST} 
+            on:change={saveSettings} 
+        />
+
         <RetroSelect 
             label="SLEEP (HRS/DAY)" 
             bind:value={sleepHours} 

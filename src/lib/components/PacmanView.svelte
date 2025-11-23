@@ -574,7 +574,13 @@
 
         <div class="stats">
             {#if viewMode === "total"}
-                <div class="stat-header">TIME LEFT:</div>
+                <div class="stat-header">
+                    TIME LEFT:
+                    <span class="tooltip-container">
+                        <span class="question-mark">?</span>
+                        <span class="tooltip-text">Expectancy values are based on the UN: Estimate of life expectancy for various ages in 2023.</span>
+                    </span>
+                </div>
                 <div class="stat-item">
                     IN YEARS: <span class="white"
                         >{Math.floor(effectiveMonthsLeft / 12)}</span
@@ -975,6 +981,52 @@
     .stat-header {
         color: #888;
         margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .tooltip-container {
+        position: relative;
+        display: inline-block;
+        cursor: help;
+    }
+
+    .question-mark {
+        font-size: 0.6rem;
+        color: #666;
+        border: 1px solid #666;
+        border-radius: 50%;
+        width: 12px;
+        height: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .tooltip-text {
+        visibility: hidden;
+        width: 200px;
+        background-color: #000;
+        color: #fff;
+        text-align: center;
+        border: 1px solid #fff;
+        padding: 0.5rem;
+        position: absolute;
+        z-index: 100;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -100px;
+        font-size: 0.6rem;
+        line-height: 1.4;
+        opacity: 0;
+        transition: opacity 0.3s;
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+
+    .tooltip-container:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
     }
 
     .text-center { text-align: center; width: 100%; }

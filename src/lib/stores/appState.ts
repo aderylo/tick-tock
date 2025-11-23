@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { calculateLifeExpectancy } from '$lib/utils/lifeExpectancy';
 
 export type ViewType = 'big-picture' | 'yearly' | 'monthly' | 'weekly' | 'calendar';
 export type AppMode = 'intro' | 'age-input' | 'dashboard';
@@ -9,6 +10,7 @@ export interface AppState {
     userData: {
         name: string;
         age: number | null;
+        country: string;
         lifeExpectancy: number;
         sleepHours: number;
         workHours: number;
@@ -38,6 +40,7 @@ export interface AppState {
 const defaultUserData = {
     name: 'TRAVELLER',
     age: null,
+    country: 'Germany',
     lifeExpectancy: 80,
     sleepHours: 8,
     workHours: 8,
@@ -83,6 +86,11 @@ function createPersistedStore() {
                         ...parsed.userData
                     }
                 };
+
+                // Recalculate life expectancy based on age if present
+                if (startState.userData.age !== null) {
+                    startState.userData.lifeExpectancy = calculateLifeExpectancy(startState.userData.age, startState.userData.country);
+                }
             } catch (e) {
                 console.error("Failed to parse stored state", e);
             }
@@ -125,8 +133,24 @@ export const setView = (view: ViewType) => {
 };
 
 export const updateUserData = (data: Partial<AppState['userData']>) => {
-    appState.update(state => ({
-        ...state,
-        userData: { ...state.userData, ...data }
-    }));
+    appState.update(state => {
+        const newData = { ...state.userData, ...data };
+        
+        // If age is updated, recalculate life expectancy automatically
+        // (Unless lifeExpectancy is being explicitly set in the same update)
+        if ((data.age !== undefined || data.country !== undefined) && data.lifeExpectancy === undefined) {
+            // Use new values if present, otherwise fallback to current state
+            const ageToUse = data.age !== undefined ? data.age : state.userData.age;
+            const countryToUse = data.country !== undefined ? data.country : state.userData.country;
+            
+            if (ageToUse !== null) {
+                newData.lifeExpectancy = calculateLifeExpectancy(ageToUse, countryToUse);
+            }
+        }
+
+        return {
+            ...state,
+            userData: newData
+        };
+    });
 };
