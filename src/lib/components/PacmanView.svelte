@@ -260,7 +260,7 @@
         grid-template-columns: repeat(24, 1fr); /* 2 Years per row */
         gap: 1px;
         width: 100%;
-        max-width: 100%;
+        max-width: 650px; /* Cap width on desktop to keep dots packed */
         height: auto;
         /* Removed max-height/overflow to ensure border always wraps content with padding */
         padding: 0.5rem;
