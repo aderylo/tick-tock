@@ -73,6 +73,53 @@
     let deadlineTimeStr = "00:00";
     let showDeadlineInput = false;
     let deadlineDate: Date | null = null;
+    let showSavedDeadlines = false;
+    let startDate: Date = new Date(); // Default to now
+
+    function saveCurrentDeadline() {
+        if (!deadlineDateStr) return;
+        const name = prompt("NAME THIS DEADLINE:");
+        if (!name) return;
+        
+        const nowIso = new Date().toISOString();
+        const newDeadline = {
+            name,
+            date: deadlineDateStr,
+            time: deadlineTimeStr,
+            startDate: nowIso
+        };
+        
+        const currentSaved = userData.savedDeadlines || [];
+        updateUserData({
+            savedDeadlines: [...currentSaved, newDeadline],
+            deadline: {
+                date: deadlineDateStr,
+                time: deadlineTimeStr,
+                startDate: nowIso
+            }
+        });
+        
+        startDate = new Date(nowIso);
+    }
+
+    function loadDeadline(dl: { name: string; date: string; time: string; startDate?: string }) {
+        deadlineDateStr = dl.date;
+        deadlineTimeStr = dl.time;
+        if (dl.startDate) {
+            startDate = new Date(dl.startDate);
+            updateUserData({
+                deadline: {
+                    date: deadlineDateStr,
+                    time: deadlineTimeStr,
+                    startDate: dl.startDate
+                }
+            });
+        } else {
+            // Fallback for old data without start date
+            startDate = new Date(); 
+        }
+        showSavedDeadlines = false;
+    }
     
     // Check if deadline exists in store on init
     onMount(() => {
@@ -86,6 +133,9 @@
             if (userData.deadline.time) {
                 deadlineTimeStr = userData.deadline.time;
             }
+            if (userData.deadline.startDate) {
+                startDate = new Date(userData.deadline.startDate);
+            }
             viewMode = "deadline"; // Optional: switch to deadline mode if it was set? Or just load it.
             // Let's just load the values.
         }
@@ -94,44 +144,79 @@
     });
     
     // Watch for changes in local deadline inputs and update store
+    // But be careful not to reset startDate if just changing date manually?
+    // If user manually changes date, start date resets to NOW unless we want to keep it.
+    // Usually if you change the target, it's a new goal.
     function updateDeadlineStore() {
         if (deadlineDateStr) {
-             updateUserData({
-                deadline: {
-                    date: deadlineDateStr,
-                    time: deadlineTimeStr
-                }
-            });
+             // If we are just updating the date, we might want to reset start date to now, 
+             // UNLESS we are just correcting a typo? 
+             // Simplest logic: any manual change to date/time resets the "race".
+             // But if we are loading from store, we don't want to reset.
+             // This function is called by reactive block below.
+             
+             // Ideally we don't auto-save to store on every keystroke if we want to preserve start date logic cleanly.
+             // But the app auto-saves.
+             
+             // Let's say: if manual edit, startDate becomes NOW.
+             // But the reactive block runs on load too. We need to distinguish.
+             // The reactive block below uses `deadlineDateStr`.
         }
     }
-
-    // Always use current time as start date
-    $: startDate = new Date();
 
     // Derived Year Stats
     $: currentYear = new Date().getFullYear();
     $: now = new Date();
     
     // Update dates from strings
+    // We need to handle the initialization vs manual update
+    let initialized = false;
     $: if (deadlineDateStr) {
         const d = new Date(deadlineDateStr + 'T' + deadlineTimeStr);
         if (!isNaN(d.getTime())) {
             deadlineDate = d;
-            // Debounce or just update store when valid
-            updateDeadlineStore();
+            
+            if (initialized && typeof window !== 'undefined') {
+                 // Only update store if this is a user interaction (after init)
+                 // Check if the store value is different to avoid loops
+                 if (userData.deadline?.date !== deadlineDateStr || userData.deadline?.time !== deadlineTimeStr) {
+                     const newStart = new Date().toISOString();
+                     startDate = new Date(newStart);
+                     updateUserData({
+                        deadline: {
+                            date: deadlineDateStr,
+                            time: deadlineTimeStr,
+                            startDate: newStart
+                        }
+                    });
+                 }
+            }
         }
     } else {
         deadlineDate = null;
     }
+    
+    onMount(() => {
+        setTimeout(() => { initialized = true; }, 500);
+    });
 
     // Deadline Calculations
     $: deadlineDiffMs = (deadlineDate) ? deadlineDate.getTime() - now.getTime() : 0;
 
 
     $: totalDeadlineSpanMs = (deadlineDate) ? deadlineDate.getTime() - startDate.getTime() : 1;
-    $: deadlineConsumedMs = 0; // Since start is now.
+    $: deadlineConsumedMs = 0; // Since start is now. -- WAIT, this logic needs update.
+    
+    // Recalculate consumed based on start date
+    // If startDate is in past, consumed is (now - startDate)
+    $: timePassedMs = Math.max(0, now.getTime() - startDate.getTime());
     
     $: effectiveDeadlineDiffMs = deadlineDiffMs * (1 - totalExcludedRatio);
+    $: effectiveTimePassedMs = timePassedMs * (1 - totalExcludedRatio); // Also reduce passed time by ratio? 
+    // Actually, capacity is total * (1-ratio).
+    // Used is passed * (1-ratio).
+    // Remaining is diff * (1-ratio).
+    
     $: deadlineWeeksLeft = Math.max(0, Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60 * 24 * 7)));
     $: deadlineDaysLeft = Math.max(0, Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60 * 24)));
     $: deadlineHoursLeft = Math.max(0, Math.floor(effectiveDeadlineDiffMs / (1000 * 60 * 60)));
@@ -141,9 +226,20 @@
         
     $: deadlinePercentLeft = 0; // Not used really, we use capacity
          
-    $: deadlinePercentCapacity = (deadlineDate && totalDeadlineSpanMs > 0)
-        ? (effectiveDeadlineDiffMs / totalDeadlineSpanMs) * 100
-        : 100; // Default to 100% capacity (0% consumed) if no deadline set
+    // Capacity = (Remaining Effective) / (Total Span) ???
+    // No. 
+    // Total Effective Capacity = Total Span * (1 - ratio).
+    // Remaining Effective = Total Effective Capacity - Effective Time Passed.
+    // Percentage = (Remaining Effective / Total Effective Capacity) * 100.
+    
+    // If Total Span <= 0 (start > deadline), then 0% capacity.
+    
+    $: totalEffectiveCapacity = (totalDeadlineSpanMs > 0) ? totalDeadlineSpanMs * (1 - totalExcludedRatio) : 0;
+    
+    $: deadlinePercentCapacity = (deadlineDate && totalEffectiveCapacity > 0)
+        ? Math.max(0, Math.min(100, (effectiveDeadlineDiffMs / totalEffectiveCapacity) * 100))
+        : 100; // Default to 100% capacity if invalid
+
 
     $: startOfYear = new Date(currentYear, 0, 1);
     $: endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
@@ -223,7 +319,7 @@
 
             // Adjust cell size for yearly mode to be chunkier
             if (viewMode === "deadline") {
-                cell.style.height = "30px"; // Square-ish 
+                cell.style.height = "10px"; // Consistent with other views (was 30px)
             } else if (viewMode === "yearly") {
                 // Keep compact for 365 dots
                 cell.style.height = "10px"; 
@@ -234,8 +330,8 @@
 
             // Adjust dot size for yearly mode
             if (viewMode === "deadline") {
-                dot.style.width = "12px"; 
-                dot.style.height = "12px";
+                dot.style.width = "4px"; // Consistent with other views (was 12px)
+                dot.style.height = "4px"; // Consistent with other views (was 12px)
             }
 
             cell.appendChild(dot);
@@ -253,8 +349,8 @@
         // Adjust grid columns
         if (viewMode === "deadline") {
             gridContainer.style.gridTemplateColumns = "repeat(10, 1fr)";
-            gridContainer.style.maxWidth = "320px"; // 10 * ~30px
-            gridContainer.style.gap = "2px";
+            gridContainer.style.maxWidth = "250px"; // Increased from 200px
+            gridContainer.style.gap = "15px"; // Increased from 10px
         } else if (viewMode === "yearly") {
             gridContainer.style.gridTemplateColumns = "repeat(25, 1fr)"; // Fits 365 nicely (14.6 rows)
             gridContainer.style.maxWidth = "650px";
@@ -395,41 +491,104 @@
         {/if}
     </div>
     
-    {#if viewMode === "deadline"}
-        <div class="deadline-inputs">
-            <div class="input-group">
-                <label for="deadline-picker">SELECT DEADLINE</label>
-                <div class="date-time-wrapper" id="deadline-picker">
-                    <input type="date" bind:value={deadlineDateStr} aria-label="Select Date" />
-                    <input type="time" bind:value={deadlineTimeStr} aria-label="Select Time" />
-                </div>
-            </div>
-        </div>
-    {/if}
-
     <div class="main-content">
         <!-- Placeholder for symmetry (desktop only) -->
         <div class="placeholder-box desktop-only"></div>
 
-        <div class="grid-wrapper" bind:this={gridContainer}></div>
+        <!-- Wrap Grid and Mobile Stats together to control order -->
+        <div class="center-column">
+            <div class="grid-wrapper" bind:this={gridContainer}></div>
+            
+            {#if viewMode === "deadline"}
+                <div class="deadline-inputs">
+                    <div class="input-group">
+                        <label for="deadline-picker">NEW DEADLINE</label>
+                        <div class="date-time-wrapper" id="deadline-picker">
+                            <input type="date" bind:value={deadlineDateStr} aria-label="Select Date" />
+                            <input type="time" bind:value={deadlineTimeStr} aria-label="Select Time" />
+                        </div>
+                        <div class="deadline-actions">
+                            <button class="pixel-btn small" on:click={saveCurrentDeadline}>SAVE</button>
+                            <div class="select-wrapper">
+                                <button class="pixel-btn small" on:click={() => showSavedDeadlines = !showSavedDeadlines}>SELECT</button>
+                                {#if showSavedDeadlines}
+                                    <div class="saved-dropdown">
+                                        {#if (userData.savedDeadlines || []).length === 0}
+                                            <div class="dropdown-item disabled">NO SAVED DEADLINES</div>
+                                        {:else}
+                                            {#each (userData.savedDeadlines || []) as dl}
+                                                <button class="dropdown-item" on:click={() => loadDeadline(dl)}>
+                                                    {dl.name}
+                                                </button>
+                                            {/each}
+                                        {/if}
+                                        <button class="dropdown-item close-dropdown" on:click={() => showSavedDeadlines = false}>
+                                            [CLOSE]
+                                        </button>
+                                    </div>
+                                {/if}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {/if}
+
+            <!-- Mobile Stats (below pacman) -->
+            <div class="mobile-stats mobile-only">
+                 {#if viewMode === "total"}
+                    <div class="mobile-stat-row">
+                        <div><span class="mobile-label">IN YEARS:</span><span class="white">{Math.floor(effectiveMonthsLeft / 12)}</span></div>
+                        <div><span class="mobile-label">IN MONTHS:</span><span class="blue">{Math.round(effectiveMonthsLeft).toLocaleString()}</span></div>
+                    </div>
+                    <div class="mobile-stat-row">
+                        <div><span class="mobile-label">IN WEEKS:</span><span class="green">{Math.round(effectiveMonthsLeft * 4.345).toLocaleString()}</span></div>
+                        <div><span class="mobile-label">LEFT:</span><span class="green">{effectivePercentLeft.toFixed(1)}%</span></div>
+                    </div>
+                {:else if viewMode === "yearly"}
+                    <div class="mobile-stat-row">
+                        <div><span class="mobile-label">IN WEEKS:</span><span class="white">{yearWeeksLeft}</span></div>
+                        <div><span class="mobile-label">IN DAYS:</span><span class="blue">{yearDaysLeft}</span></div>
+                    </div>
+                    <div class="mobile-stat-row">
+                        <div><span class="mobile-label">IN HOURS:</span><span class="green">{yearHoursLeft.toLocaleString()}</span></div>
+                        <div><span class="mobile-label">LEFT:</span><span class="green">{yearPercentLeft.toFixed(1)}%</span></div>
+                    </div>
+                {:else if viewMode === "deadline"}
+                     {#if !deadlineDate}
+                        <div class="text-center text-gray">SELECT A DEADLINE ABOVE</div>
+                     {:else if deadlineDiffMs < 0}
+                        <div class="text-center text-red">DEADLINE PASSED</div>
+                     {:else}
+                        <div class="mobile-stat-row">
+                            <div><span class="mobile-label">IN WEEKS:</span><span class="white">{deadlineWeeksLeft}</span></div>
+                            <div><span class="mobile-label">IN DAYS:</span><span class="blue">{deadlineDaysLeft}</span></div>
+                        </div>
+                        <div class="mobile-stat-row">
+                            <div><span class="mobile-label">IN HOURS:</span><span class="green">{deadlineHoursLeft.toLocaleString()}</span></div>
+                            <div><span class="mobile-label">LEFT:</span><span class="green">{deadlinePercentCapacity.toFixed(1)}%</span></div>
+                        </div>
+                     {/if}
+                {/if}
+            </div>
+        </div>
 
         <div class="stats">
             {#if viewMode === "total"}
                 <div class="stat-header">TIME LEFT:</div>
                 <div class="stat-item">
-                    YEARS: <span class="white"
+                    IN YEARS: <span class="white"
                         >{Math.floor(effectiveMonthsLeft / 12)}</span
                     >
                 </div>
                 <div class="stat-item">
-                    MONTHS: <span class="blue"
+                    IN MONTHS: <span class="blue"
                         >{Math.round(
                             effectiveMonthsLeft,
                         ).toLocaleString()}</span
                     >
                 </div>
                 <div class="stat-item">
-                    WEEKS: <span class="green"
+                    IN WEEKS: <span class="green"
                         >{Math.round(
                             effectiveMonthsLeft * 4.345,
                         ).toLocaleString()}</span
@@ -444,13 +603,13 @@
             {:else if viewMode === "yearly"}
                 <div class="stat-header">YEAR {currentYear}:</div>
                 <div class="stat-item">
-                    WEEKS: <span class="white">{yearWeeksLeft}</span>
+                    IN WEEKS: <span class="white">{yearWeeksLeft}</span>
                 </div>
                 <div class="stat-item">
-                    DAYS: <span class="blue">{yearDaysLeft}</span>
+                    IN DAYS: <span class="blue">{yearDaysLeft}</span>
                 </div>
                 <div class="stat-item">
-                    HOURS: <span class="green"
+                    IN HOURS: <span class="green"
                         >{yearHoursLeft.toLocaleString()}</span
                     >
                 </div>
@@ -464,17 +623,17 @@
                 <div class="stat-header">DEADLINE:</div>
                  {#if !deadlineDate}
                     <div class="stat-item">PLEASE SELECT A DATE</div>
-                 {:else if deadlineDiffMs < 0}
+                 {:else if deadlineDiffMs <0}
                     <div class="stat-item text-red">DEADLINE PASSED</div>
                  {:else}
                     <div class="stat-item">
-                        WEEKS: <span class="white">{deadlineWeeksLeft}</span>
+                        IN WEEKS: <span class="white">{deadlineWeeksLeft}</span>
                     </div>
                     <div class="stat-item">
-                        DAYS: <span class="blue">{deadlineDaysLeft}</span>
+                        IN DAYS: <span class="blue">{deadlineDaysLeft}</span>
                     </div>
                     <div class="stat-item">
-                        HOURS: <span class="green"
+                        IN HOURS: <span class="green"
                             >{deadlineHoursLeft.toLocaleString()}</span
                         >
                     </div>
@@ -488,43 +647,7 @@
             {/if}
         </div>
         
-        <!-- Mobile Stats (below pacman) -->
-        <div class="mobile-stats mobile-only">
-             {#if viewMode === "total"}
-                <div class="mobile-stat-row">
-                    <div>YEARS: <span class="white">{Math.floor(effectiveMonthsLeft / 12)}</span></div>
-                    <div>MONTHS: <span class="blue">{Math.round(effectiveMonthsLeft).toLocaleString()}</span></div>
-                </div>
-                <div class="mobile-stat-row">
-                    <div>WEEKS: <span class="green">{Math.round(effectiveMonthsLeft * 4.345).toLocaleString()}</span></div>
-                    <div>LEFT: <span class="green">{effectivePercentLeft.toFixed(1)}%</span></div>
-                </div>
-            {:else if viewMode === "yearly"}
-                <div class="mobile-stat-row">
-                    <div>WEEKS: <span class="white">{yearWeeksLeft}</span></div>
-                    <div>DAYS: <span class="blue">{yearDaysLeft}</span></div>
-                </div>
-                <div class="mobile-stat-row">
-                    <div>HOURS: <span class="green">{yearHoursLeft.toLocaleString()}</span></div>
-                    <div>LEFT: <span class="green">{yearPercentLeft.toFixed(1)}%</span></div>
-                </div>
-            {:else if viewMode === "deadline"}
-                 {#if !deadlineDate}
-                    <div class="text-center text-gray">SELECT A DEADLINE ABOVE</div>
-                 {:else if deadlineDiffMs < 0}
-                    <div class="text-center text-red">DEADLINE PASSED</div>
-                 {:else}
-                    <div class="mobile-stat-row">
-                        <div>WEEKS: <span class="white">{deadlineWeeksLeft}</span></div>
-                        <div>DAYS: <span class="blue">{deadlineDaysLeft}</span></div>
-                    </div>
-                    <div class="mobile-stat-row">
-                        <div>HOURS: <span class="green">{deadlineHoursLeft.toLocaleString()}</span></div>
-                        <div>LEFT: <span class="green">{deadlinePercentCapacity.toFixed(1)}%</span></div>
-                    </div>
-                 {/if}
-            {/if}
-        </div>
+        <!-- Mobile Stats (below pacman) - MOVED UP -->
     </div>
 
     <div class="toggles">
@@ -677,8 +800,69 @@
         display: flex;
         gap: 1rem;
         justify-content: center;
-        margin-bottom: 1rem;
+        align-items: flex-end;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
         flex-wrap: wrap;
+    }
+
+    .deadline-actions {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        margin-top: 0.5rem;
+    }
+
+    .select-wrapper {
+        position: relative;
+    }
+
+    .saved-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        min-width: 200px;
+        background: #000;
+        border: 2px solid #ffff00;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        margin-top: 0.5rem;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.8);
+    }
+
+    .saved-dropdown .dropdown-item {
+        text-align: left;
+        padding: 0.8rem;
+        border-bottom: 1px solid #333;
+    }
+
+    .saved-dropdown .dropdown-item:hover {
+        background: #222;
+        color: #ffff00;
+        padding-left: 1rem;
+    }
+    
+    .saved-dropdown .dropdown-item.disabled {
+        color: #444;
+        font-style: italic;
+        cursor: default;
+    }
+    
+    .saved-dropdown .dropdown-item.disabled:hover {
+        background: #000;
+        color: #444;
+        padding-left: 0.8rem;
+    }
+
+    .saved-dropdown .dropdown-item.close-dropdown {
+        text-align: center;
+        color: #666;
+        border-bottom: none;
+    }
+    
+    .saved-dropdown .dropdown-item.close-dropdown:hover {
+        color: #fff;
     }
 
     .input-group {
@@ -733,10 +917,17 @@
 
     .main-content {
         display: flex;
-        flex-direction: column-reverse; /* Stats on top of Grid on mobile */
+        flex-direction: column; /* Default stack */
         align-items: center;
         gap: 2rem;
         width: 100%;
+    }
+
+    .center-column {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
     }
 
     .stats {
@@ -775,6 +966,12 @@
         color: #888;
     }
 
+    .mobile-label {
+        color: #888;
+        font-size: 0.6rem;
+        margin-right: 0.5rem;
+    }
+
     .stat-header {
         color: #888;
         margin-bottom: 0.5rem;
@@ -805,6 +1002,14 @@
             gap: 2rem; /* Space between items */
             position: relative;
             overflow: visible;
+        }
+
+        .center-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 650px;
         }
 
         .grid-wrapper {
@@ -858,6 +1063,14 @@
         cursor: pointer;
         transition: all 0.2s;
         line-height: 1.2;
+    }
+    
+    .pixel-btn.small {
+        padding: 0.5rem 0.8rem;
+        font-size: 0.6rem;
+        height: 32px; /* Match input height roughly */
+        display: flex;
+        align-items: center;
     }
 
     .pixel-btn:hover {

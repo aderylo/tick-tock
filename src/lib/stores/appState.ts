@@ -16,9 +16,17 @@ export interface AppState {
         screenTime: number;
         commuteTime: number;
         deadline?: {
+            name?: string;
             date: string | null;
             time: string | null;
+            startDate?: string;
         };
+        savedDeadlines?: {
+            name: string;
+            date: string;
+            time: string;
+            startDate: string;
+        }[];
         exclusions: {
             sleep: boolean;
             work: boolean;
@@ -37,9 +45,11 @@ const defaultUserData = {
     screenTime: 3,
     commuteTime: 1,
     deadline: {
+        name: '',
         date: null,
         time: null
     },
+    savedDeadlines: [],
     exclusions: {
         sleep: false,
         work: false,
