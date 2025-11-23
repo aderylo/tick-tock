@@ -155,7 +155,7 @@
             const deadlineProgress = 1 - (deadlinePercentCapacity / 100);
             target = Math.min(100, Math.max(0, deadlineProgress * 100));
         }
-        animateTo(target);
+        animateTo(target || 0);
     }
 
     onDestroy(() => {
@@ -374,10 +374,10 @@
     {#if viewMode === "deadline"}
         <div class="deadline-inputs">
             <div class="input-group">
-                <label>SELECT DEADLINE</label>
-                <div class="date-time-wrapper">
-                    <input type="date" bind:value={deadlineDateStr} />
-                    <input type="time" bind:value={deadlineTimeStr} />
+                <label for="deadline-picker">SELECT DEADLINE</label>
+                <div class="date-time-wrapper" id="deadline-picker">
+                    <input type="date" bind:value={deadlineDateStr} aria-label="Select Date" />
+                    <input type="time" bind:value={deadlineTimeStr} aria-label="Select Time" />
                 </div>
             </div>
         </div>
@@ -629,6 +629,7 @@
     .input-group label {
         font-size: 0.6rem;
         color: #888;
+        margin-bottom: 0.2rem;
     }
 
     input[type="date"],
@@ -738,11 +739,7 @@
         }
     }
 
-    .stat {
-        display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
-    }
+        /* Unused .stat class removed */
 
     .white {
         color: white;
