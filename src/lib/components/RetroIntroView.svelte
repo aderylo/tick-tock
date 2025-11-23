@@ -1,10 +1,10 @@
 <script lang="ts">
-    import { appState, updateUserData, setMode } from "$lib/stores/appState";
+    import { appState, updateUserData, setMode, resetAppState } from "$lib/stores/appState";
     import PacmanView from "$lib/components/PacmanView.svelte";
     import { onMount } from "svelte";
     import { fade } from "svelte/transition";
 
-    let currentScreen: "home" | "loading" | "eulogy" | "reflection" | "status" =
+    let currentScreen: "home" | "loading" | "eulogy" | "reflection" | "status" | "settings" =
         "home";
 
     let travellerName = "";
@@ -55,6 +55,20 @@
 
         currentScreen = "status";
     }
+
+    onMount(() => {
+        // Check if user has already entered data (persisted)
+        const ud = $appState.userData;
+        // We consider it "entered" if age is set (since name has a default)
+        // And we ensure we aren't already deep in the intro flow (which on fresh load we aren't)
+        if (ud.age && ud.age > 0) {
+            // Populate local fields
+            travellerName = ud.name;
+            travellerAge = ud.age.toString();
+            // Skip directly to status
+            currentScreen = "status";
+        }
+    });
 
     async function typeLine(text: string, delay = 30) {
         // Add empty line first
@@ -111,6 +125,24 @@
     function handleReflectionSubmit() {
         alert("TRAJECTORY UPDATED. RESUMING SIMULATION...");
         currentScreen = "status";
+    }
+
+    function openSettings() {
+        currentScreen = "settings";
+    }
+
+    function closeSettings() {
+        currentScreen = "status";
+    }
+
+    function handleReset() {
+        if (confirm("WARNING: THIS WILL WIPE ALL MEMORY LOGS. PROCEED?")) {
+            resetAppState();
+            // Also clear local state
+            travellerName = "";
+            travellerAge = "";
+            currentScreen = "home";
+        }
     }
 </script>
 
@@ -246,14 +278,62 @@
 
     {#if currentScreen === "status"}
         <div class="screen visible" in:fade>
+            <!-- Settings Icon -->
+            <button class="settings-btn" on:click={openSettings} title="Settings">
+                ⚙️
+            </button>
+            
             <div class="w-full h-full flex justify-center items-center">
                 <PacmanView showWelcome={true} />
+            </div>
+        </div>
+    {/if}
+
+    {#if currentScreen === "settings"}
+        <div class="screen visible" in:fade>
+            <div class="ascii-frame">
+                <div class="terminal-text text-green mb-6">
+                    [ SYSTEM CONFIGURATION ]
+                </div>
+
+                <div class="flex flex-col items-center gap-4">
+                    <button class="pixel-btn text-red" style="border-color: #ff3333; color: #ff3333;" on:click={handleReset}>
+                        ⚠ FACTORY RESET
+                    </button>
+                    
+                    <div class="text-gray mt-4" style="font-size: 0.7rem;">
+                        This will purge all local data.
+                    </div>
+
+                    <button class="pixel-btn secondary mt-8" on:click={closeSettings}>
+                        [ RETURN ]
+                    </button>
+                </div>
             </div>
         </div>
     {/if}
 </div>
 
 <style>
+    /* ... previous styles ... */
+    .settings-btn {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: transparent;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        z-index: 20;
+        transition: transform 0.2s;
+        opacity: 0.5;
+    }
+    
+    .settings-btn:hover {
+        transform: rotate(90deg);
+        opacity: 1;
+    }
+
     /* --- Global Variables & Reset --- */
     :global(:root) {
         --terminal-green: #00ff00;

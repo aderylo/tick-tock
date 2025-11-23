@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
-    import { appState } from "$lib/stores/appState";
+    import { appState, updateUserData } from "$lib/stores/appState";
 
     $: userData = $appState.userData;
     $: totalMonths = userData.lifeExpectancy * 12;
@@ -44,12 +44,43 @@
     let lastRenderedIndex = 0;
     let pacman: HTMLElement | null = null;
     
-    // Deadline State
+    // Deadline State - Initialize from global state if available
     let deadlineDateStr = "";
     let deadlineTimeStr = "00:00";
     let showDeadlineInput = false;
     let deadlineDate: Date | null = null;
     
+    // Check if deadline exists in store on init
+    onMount(() => {
+        const interval = setInterval(() => {
+            now = new Date();
+        }, 1000); // Update every second
+        
+        // Init deadline from store
+        if (userData.deadline && userData.deadline.date) {
+            deadlineDateStr = userData.deadline.date;
+            if (userData.deadline.time) {
+                deadlineTimeStr = userData.deadline.time;
+            }
+            viewMode = "deadline"; // Optional: switch to deadline mode if it was set? Or just load it.
+            // Let's just load the values.
+        }
+
+        return () => clearInterval(interval);
+    });
+    
+    // Watch for changes in local deadline inputs and update store
+    function updateDeadlineStore() {
+        if (deadlineDateStr) {
+             updateUserData({
+                deadline: {
+                    date: deadlineDateStr,
+                    time: deadlineTimeStr
+                }
+            });
+        }
+    }
+
     // Always use current time as start date
     $: startDate = new Date();
 
@@ -62,18 +93,16 @@
         const d = new Date(deadlineDateStr + 'T' + deadlineTimeStr);
         if (!isNaN(d.getTime())) {
             deadlineDate = d;
+            // Debounce or just update store when valid
+            updateDeadlineStore();
         }
+    } else {
+        deadlineDate = null;
     }
 
     // Deadline Calculations
     $: deadlineDiffMs = (deadlineDate) ? deadlineDate.getTime() - now.getTime() : 0;
-    
-    onMount(() => {
-        const interval = setInterval(() => {
-            now = new Date();
-        }, 1000); // Update every second
-        return () => clearInterval(interval);
-    });
+
 
     $: totalDeadlineSpanMs = (deadlineDate) ? deadlineDate.getTime() - startDate.getTime() : 1;
     $: deadlineConsumedMs = 0; // Since start is now.

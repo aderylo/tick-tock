@@ -15,25 +15,86 @@ export interface AppState {
         workDays: number;
         screenTime: number;
         commuteTime: number;
+        deadline?: {
+            date: string | null;
+            time: string | null;
+        };
     };
 }
+
+const defaultUserData = {
+    name: 'TRAVELLER',
+    age: null,
+    lifeExpectancy: 80,
+    sleepHours: 8,
+    workHours: 8,
+    workDays: 5,
+    screenTime: 3,
+    commuteTime: 1,
+    deadline: {
+        date: null,
+        time: null
+    }
+};
 
 const initialState: AppState = {
     mode: 'intro',
     currentView: 'big-picture',
-    userData: {
-        name: 'TRAVELLER',
-        age: null,
-        lifeExpectancy: 80,
-        sleepHours: 8,
-        workHours: 8,
-        workDays: 5,
-        screenTime: 3,
-        commuteTime: 1
-    }
+    userData: defaultUserData
 };
 
-export const appState = writable<AppState>(initialState);
+function createPersistedStore() {
+    // Check if we're in a browser environment
+    const isBrowser = typeof localStorage !== 'undefined';
+    
+    // Load from local storage if available
+    let startState = initialState;
+    if (isBrowser) {
+        const stored = localStorage.getItem('tick-tock-state');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                // Merge with initial state to ensure all fields exist (migration safe-ish)
+                startState = {
+                    ...initialState,
+                    ...parsed,
+                    userData: {
+                        ...defaultUserData,
+                        ...parsed.userData
+                    }
+                };
+            } catch (e) {
+                console.error("Failed to parse stored state", e);
+            }
+        }
+    }
+
+    const { subscribe, set, update } = writable<AppState>(startState);
+
+    return {
+        subscribe,
+        set: (val: AppState) => {
+            if (isBrowser) localStorage.setItem('tick-tock-state', JSON.stringify(val));
+            set(val);
+        },
+        update: (fn: (val: AppState) => AppState) => {
+            update(state => {
+                const newState = fn(state);
+                if (isBrowser) localStorage.setItem('tick-tock-state', JSON.stringify(newState));
+                return newState;
+            });
+        }
+    };
+}
+
+export const appState = createPersistedStore();
+
+export const resetAppState = () => {
+    if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('tick-tock-state');
+    }
+    appState.set(initialState);
+};
 
 export const setMode = (mode: AppMode) => {
     appState.update(state => ({ ...state, mode }));
