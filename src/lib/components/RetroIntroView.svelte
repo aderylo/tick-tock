@@ -1,6 +1,7 @@
 <script lang="ts">
     import { appState, updateUserData, setMode, resetAppState } from "$lib/stores/appState";
     import PacmanView from "$lib/components/PacmanView.svelte";
+    import SettingsView from "$lib/components/SettingsView.svelte";
     import { onMount } from "svelte";
     import { fade } from "svelte/transition";
 
@@ -136,13 +137,10 @@
     }
 
     function handleReset() {
-        if (confirm("WARNING: THIS WILL WIPE ALL MEMORY LOGS. PROCEED?")) {
-            resetAppState();
-            // Also clear local state
-            travellerName = "";
-            travellerAge = "";
-            currentScreen = "home";
-        }
+        // Local cleanup after SettingsView triggers reset
+        travellerName = "";
+        travellerAge = "";
+        currentScreen = "home";
     }
 </script>
 
@@ -291,25 +289,7 @@
 
     {#if currentScreen === "settings"}
         <div class="screen visible" in:fade>
-            <div class="ascii-frame">
-                <div class="terminal-text text-green mb-6">
-                    [ SYSTEM CONFIGURATION ]
-                </div>
-
-                <div class="flex flex-col items-center gap-4">
-                    <button class="pixel-btn text-red" style="border-color: #ff3333; color: #ff3333;" on:click={handleReset}>
-                        ⚠ FACTORY RESET
-                    </button>
-                    
-                    <div class="text-gray mt-4" style="font-size: 0.7rem;">
-                        This will purge all local data.
-                    </div>
-
-                    <button class="pixel-btn secondary mt-8" on:click={closeSettings}>
-                        [ RETURN ]
-                    </button>
-                </div>
-            </div>
+            <SettingsView on:close={closeSettings} on:reset={handleReset} />
         </div>
     {/if}
 </div>
@@ -396,12 +376,7 @@
     }
 
     /* Specific override for Loading Screen to fit lines */
-    #loading-screen .terminal-text {
-        font-size: 0.7rem;
-        margin-bottom: 0.8rem;
-        white-space: nowrap;
-        /* Keep on one line if possible */
-    }
+    /* #loading-screen .terminal-text { ... } - Unused */
 
     /* --- Inputs --- */
     .input-group {
@@ -434,11 +409,6 @@
         max-width: 400px;
         box-shadow: none;
         transition: all 0.3s;
-    }
-
-    input:focus,
-    textarea:focus {
-        /* No border change on focus */
     }
 
     /* Hide spin buttons for number input */
@@ -478,17 +448,6 @@
     .pixel-btn:hover {
         background: #000;
         color: var(--terminal-green);
-    }
-
-    .pixel-btn.secondary {
-        background: transparent;
-        border-color: #666;
-        color: #888;
-    }
-
-    .pixel-btn.secondary:hover {
-        border-color: #fff;
-        color: #fff;
     }
 
     .skip-btn {
@@ -631,17 +590,11 @@
         color: var(--terminal-green);
     }
 
-    .text-yellow {
-        color: #ffff00;
-    }
+    /* .text-yellow { color: #ffff00; } Unused */
 
-    .text-red {
-        color: #ff3333;
-    }
+    /* .text-red { color: #ff3333; } Unused */
 
-    .text-blue {
-        color: #33ccff;
-    }
+    /* .text-blue { color: #33ccff; } Unused */
 
     .text-gray {
         color: #888;
