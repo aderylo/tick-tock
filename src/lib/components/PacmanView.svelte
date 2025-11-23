@@ -487,6 +487,44 @@
                  {/if}
             {/if}
         </div>
+        
+        <!-- Mobile Stats (below pacman) -->
+        <div class="mobile-stats mobile-only">
+             {#if viewMode === "total"}
+                <div class="mobile-stat-row">
+                    <div>YEARS: <span class="white">{Math.floor(effectiveMonthsLeft / 12)}</span></div>
+                    <div>MONTHS: <span class="blue">{Math.round(effectiveMonthsLeft).toLocaleString()}</span></div>
+                </div>
+                <div class="mobile-stat-row">
+                    <div>WEEKS: <span class="green">{Math.round(effectiveMonthsLeft * 4.345).toLocaleString()}</span></div>
+                    <div>LEFT: <span class="green">{effectivePercentLeft.toFixed(1)}%</span></div>
+                </div>
+            {:else if viewMode === "yearly"}
+                <div class="mobile-stat-row">
+                    <div>WEEKS: <span class="white">{yearWeeksLeft}</span></div>
+                    <div>DAYS: <span class="blue">{yearDaysLeft}</span></div>
+                </div>
+                <div class="mobile-stat-row">
+                    <div>HOURS: <span class="green">{yearHoursLeft.toLocaleString()}</span></div>
+                    <div>LEFT: <span class="green">{yearPercentLeft.toFixed(1)}%</span></div>
+                </div>
+            {:else if viewMode === "deadline"}
+                 {#if !deadlineDate}
+                    <div class="text-center text-gray">SELECT A DEADLINE ABOVE</div>
+                 {:else if deadlineDiffMs < 0}
+                    <div class="text-center text-red">DEADLINE PASSED</div>
+                 {:else}
+                    <div class="mobile-stat-row">
+                        <div>WEEKS: <span class="white">{deadlineWeeksLeft}</span></div>
+                        <div>DAYS: <span class="blue">{deadlineDaysLeft}</span></div>
+                    </div>
+                    <div class="mobile-stat-row">
+                        <div>HOURS: <span class="green">{deadlineHoursLeft.toLocaleString()}</span></div>
+                        <div>LEFT: <span class="green">{deadlinePercentCapacity.toFixed(1)}%</span></div>
+                    </div>
+                 {/if}
+            {/if}
+        </div>
     </div>
 
     <div class="toggles">
@@ -713,10 +751,37 @@
         max-width: 650px;
     }
 
+    .mobile-stats {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        border-top: 1px dashed #444;
+        padding-top: 1rem;
+    }
+
+    @media (min-width: 900px) {
+        .mobile-stats {
+            display: none !important;
+        }
+    }
+
+    .mobile-stat-row {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        font-size: 0.7rem;
+        color: #888;
+    }
+
     .stat-header {
         color: #888;
         margin-bottom: 0.5rem;
     }
+
+    .text-center { text-align: center; width: 100%; }
+    .text-gray { color: #888; }
 
     .stat-item {
         color: #888;
