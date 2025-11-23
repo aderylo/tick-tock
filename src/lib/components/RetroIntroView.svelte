@@ -210,26 +210,25 @@
     {#if currentScreen === "eulogy"}
         <div class="screen visible" in:fade>
             <div class="ascii-frame">
-                <!-- Cross at Top Middle -->
-                <div class="cross-container">
-                    <div class="pixel-cross">†</div>
+                <!-- R.I.P. Header -->
+                <div class="rip-header">
+                    R.I.P.
                 </div>
 
                 <div
-                    class="terminal-text text-gray mb-6"
-                    style="font-size: 0.7rem; letter-spacing: 1px;"
+                    class="terminal-text text-gray mb-12"
+                    style="font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase;"
                 >
-                    [ MEMORY_LOG: <span class="text-white"
-                        >{travellerName.toUpperCase()}</span
-                    > ]
+                    MEMORY_LOG:<br>
+                    <span class="text-white" style="font-size: 1.2rem; display: block; margin-top: 1rem;">{travellerName.toUpperCase()}</span>
                 </div>
 
                 <!-- Dynamic Eulogy Text Container -->
                 <div
-                    class="text-center leading-relaxed mb-10 text-gray-300 px-4"
-                    style="font-size: 0.8rem; line-height: 2;"
+                    class="text-center leading-relaxed mb-16 text-gray-300 px-4 eulogy-content"
+                    style="font-size: 0.9rem; line-height: 2.5;"
                 >
-                    {@html eulogyText}
+                    {@html eulogyText.toUpperCase()}
                 </div>
 
                 {#if showEulogyActions}
@@ -419,6 +418,7 @@
     }
 
     input[type="number"] {
+        appearance: textfield;
         -moz-appearance: textfield;
     }
 
@@ -555,25 +555,26 @@
     .ascii-frame {
         border: 2px dashed #444;
         /* Simulates - - - - frame */
-        padding: 2rem;
+        padding: 3rem;
         max-width: 850px;
         width: 95%;
         text-align: center;
         position: relative;
-        background: rgba(0, 10, 0, 0.5);
+        background: rgba(0, 10, 0, 0.95);
     }
 
-    .cross-container {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 1.5rem;
-    }
-
-    .pixel-cross {
-        font-size: 2rem;
+    .rip-header {
+        font-size: 2.5rem;
         color: #555;
         font-weight: bold;
+        margin-bottom: 2rem;
+        letter-spacing: 4px;
+        text-shadow: 2px 2px 0px #222;
     }
+    
+    /* Removed animation keyframes */
+
+    /* Removed unused cross-container and pixel-cross */
 
     /* --- Utilities --- */
     .blink {
@@ -647,9 +648,17 @@
     .mb-8 {
         margin-bottom: 2rem;
     }
-    .mb-10 {
-        margin-bottom: 2.5rem;
+    /* Add specific spacing for paragraphs in eulogy content */
+    :global(.eulogy-content br) {
+        display: block;
+        content: "";
+        margin-bottom: 2rem;
     }
+    
+    .mb-16 {
+        margin-bottom: 4rem;
+    }
+    
     .px-4 {
         padding-left: 1rem;
         padding-right: 1rem;
